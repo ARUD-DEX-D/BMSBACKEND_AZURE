@@ -1,0 +1,6 @@
+[8/9/2025, 12:23:00 am] ✅ Notification sent to Plumbing
+Ticket:1002 Room:956 🟠🔴Both SLA Breached
+Ticket:1005 Room:956 🟠🔴Both SLA Breached
+Ticket:1008 Room:936 🟠🔴Both SLA Breached
+Ticket:1014 Room:879 🟠🔴Both SLA Breached
+Ticket:1011 Room:936 🟠🔴Both SLA Breached

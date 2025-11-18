@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const sql = require('mssql');
+const sql = require('mssql/msnodesqlv8');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -10,14 +10,11 @@ app.use(cors());
 app.use(express.json());
 
 const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  server: process.env.DB_SERVER,
-  port: parseInt(process.env.DB_PORT),
-  database: process.env.DB_NAME,
+  server: 'DESKTOP-QSJC5FP',
+  database: 'BED_TRACKING_SYSTEM',
+  driver: 'msnodesqlv8',
   options: {
-    encrypt: true,                 // Required for cloud MSSQL
-    trustServerCertificate: true  // Often needed for self-signed certs
+    trustedConnection: true
   }
 };
 
@@ -50,13 +47,57 @@ app.post('/insert', async (req, res) => {
 app.get('/people', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
-    const result = await pool.request().query('select FACILITY_CKD_ROOMNO,FACILITY_CKD_DEPT,status,userid from facility_check_details');
-    res.json(result.recordset);
+
+    const result = await pool.request().query(`
+    SELECT
+    F.FACILITY_TID,
+    F.MRNO,
+  F.FACILITY_CKD_ROOMNO,
+  F.FACILITY_CKD_DEPT,
+  F.USERID,
+  U.USERNAME,  -- Get the name from user master
+  F.DISC_RECOM_TIME,
+  F.ASSIGNED_TIME,
+  F.COMPLETED_TIME,
+  F.STATUS,
+  D.AssignSLA_Min,
+  D.CompletionSLA_Min
+FROM FACILITY_CHECK_DETAILS F 
+JOIN Facility_Dept_Master D 
+  ON F.FACILITY_CKD_DEPT = D.DEPTName
+LEFT JOIN LOGIN U 
+  ON F.USERID = U.USERID 
+ 
+    `);
+
+    res.json(result.recordset); // ✅ returns list of objects to Flutter
   } catch (err) {
-    console.error('❌ Fetch Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('❌ /people error:', err);
+    res.status(500).json({ error: 'Failed to fetch SLA data' });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ✅ GET /person/:id
 app.get('/person/:id', async (req, res) => {
@@ -80,19 +121,25 @@ app.get('/person/:id', async (req, res) => {
 
 // ✅ POST /register
 app.post('/register', async (req, res) => {
-  const { USERNAME, DEPT, USERID, PASSWORD } = req.body;
+  const { USERNAME, DEPT, USERID, PASSWORD, FCM_TOKEN } = req.body;
+
   if (!USERNAME || !DEPT || !USERID || !PASSWORD) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
   try {
     const pool = await sql.connect(dbConfig);
+
     await pool.request()
       .input('USERNAME', sql.NVarChar(100), USERNAME)
       .input('DEPT', sql.NVarChar(100), DEPT)
       .input('USERID', sql.NVarChar(100), USERID)
       .input('PASSWORD', sql.NVarChar(100), PASSWORD)
-      .query('INSERT INTO login (USERNAME, DEPT, USERID, PASSWORD) VALUES (@USERNAME, @DEPT, @USERID, @PASSWORD)');
+      .input('FCM_TOKEN', sql.NVarChar(sql.MAX), FCM_TOKEN || null) // ✅ Accept null if not present
+      .query(`
+        INSERT INTO login (USERNAME, DEPT, USERID, PASSWORD, FCM_TOKEN)
+        VALUES (@USERNAME, @DEPT, @USERID, @PASSWORD, @FCM_TOKEN)
+      `);
 
     res.json({ success: true, message: 'Inserted successfully' });
   } catch (err) {
@@ -100,6 +147,7 @@ app.post('/register', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // ✅ POST /login
 app.post('/login', async (req, res) => {
@@ -140,29 +188,103 @@ app.post('/close-ticket', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
+    // Step 1: Get DISC_RECOM_TIME, ASSIGNED_TIME, SLA values
     const result = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
+      .query(`
+        SELECT 
+          F.DISC_RECOM_TIME, 
+          F.ASSIGNED_TIME, 
+          F.COMPLETED_TIME,
+          D.AssignSLA_Min, 
+          D.CompletionSLA_Min
+        FROM FACILITY_CHECK_DETAILS F
+        JOIN Facility_Dept_Master D ON F.FACILITY_CKD_DEPT = D.DEPTName
+        WHERE F.FACILITY_CKD_ROOMNO = @ROOMNO
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Room not found.' });
+    }
+
+    const row = result.recordset[0];
+
+    const disc = new Date(row.DISC_RECOM_TIME);
+    const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
+    const completed = new Date(); // Now
+    const assignSLA = row.AssignSLA_Min;
+    const completeSLA = row.CompletionSLA_Min;
+
+    let newStatus = 0; // Default: not assigned
+
+    if (!assigned && !completed) {
+      newStatus = 0; // Not assigned, not completed
+    } else {
+      const assignDeadline = new Date(disc.getTime() + assignSLA * 60000);
+      const completeDeadline = new Date(disc.getTime() + completeSLA * 60000);
+
+      const assignExceeded = assigned && assigned > assignDeadline;
+
+      if (!completed) {
+        const completeExceeded = assigned && Date.now() > (assigned.getTime() + completeSLA * 60000);
+
+        if (assignExceeded && completeExceeded) {
+          newStatus = 4;
+        } else if (assignExceeded) {
+          newStatus = 2;
+        } else if (completeExceeded) {
+          newStatus = 3;
+        } else {
+          newStatus = 1;
+        }
+      } else {
+        const completeExceeded = completed > completeDeadline;
+
+        if (assignExceeded && completeExceeded) {
+          newStatus = 4;
+        } else if (assignExceeded) {
+          newStatus = 2;
+        } else if (completeExceeded) {
+          newStatus = 3;
+        } else {
+          newStatus = 5; // ✅ Completed within SLA
+        }
+      }
+    }
+
+    // Step 2: Update the record with SLA status, status, ticket close
+    const update = await pool.request()
+      .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('USERID', sql.NVarChar(100), USERID)
-     
+      .input('TKT_STATUS', sql.Int, 1) // ✅ Closed
+      .input('STATUS', sql.Int, newStatus) // ✅ SLA logic status
+      .input('SLA_STATUS', sql.Int, newStatus) // ✅ Optional separate field
       .query(`
         UPDATE FACILITY_CHECK_DETAILS
         SET 
-          COMPLETED_TIME = (SELECT DATEADD(MINUTE, 330, GETUTCDATE()) AS CurrentIST),
+          COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
           USERID = @USERID,
-          TKT_STATUS = 1
-        WHERE FACILITY_CKD_ROOMNO = @ROOMNO AND tkt_status != 1
+          TKT_STATUS = @TKT_STATUS,
+          STATUS =  @SLA_STATUS
+        WHERE FACILITY_CKD_ROOMNO = @ROOMNO AND TKT_STATUS != 1
       `);
 
-    if (result.rowsAffected[0] === 0) {
-      return res.status(400).json({ message: 'Ticket is already closed or not found.' });
+    if (update.rowsAffected[0] === 0) {
+      return res.status(400).json({ message: 'Ticket already closed or not found.' });
     }
 
-    res.json({ success: true, message: 'Ticket completed and closed successfully.' });
+    return res.json({
+      success: true,
+      message: 'Ticket closed successfully.',
+      status: newStatus
+    });
+
   } catch (err) {
-    console.error('❌ Complete Ticket Error:', err);
+    console.error('❌ Close Ticket Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
@@ -239,7 +361,256 @@ app.post('/assign', async (req, res) => {
 
 
 
+
+
+
+
+
+// 🛠️ API to check SLA and send notifications
+app.get('/check-sla', async (req, res) => {
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    const result = await pool.request().query(`
+      SELECT  F.FACILITY_CKD_ROOMNO, F.DISC_RECOM_TIME, F.ASSIGNED_TIME, F.COMPLETED_TIME, F.STATUS,
+             D.AssignSLA_Min, D.CompletionSLA_Min, F.FCM_TOKEN
+      FROM FACILITY_CHECK_DETAILS F
+      INNER JOIN Facility_Dept_Master D ON F.FACILITY_CKD_DEPT = D.DEPTName
+      WHERE F.STATUS IN (0, 1)
+    `);
+
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+
+    let assignBreachCount = 0;
+    let completeBreachCount = 0;
+
+    for (const row of result.recordset) {
+      const disc = new Date(row.DISC_RECOM_TIME);
+      const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
+      const completed = row.COMPLETED_TIME ? new Date(row.COMPLETED_TIME) : null;
+
+      const assignDeadline = new Date(disc.getTime() + row.AssignSLA_Min * 60000);
+      const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
+
+      if (!assigned && now > assignDeadline) {
+        assignBreachCount++;
+        if (row.FCM_TOKEN) {
+          await sendNotification(
+            row.FCM_TOKEN,
+            '🚨 SLA1 Breach',
+            `Room ${row.FACILITY_CKD_ROOMNO} not assigned within SLA`
+          );
+        }
+      }
+
+      if (assigned && !completed && now > completeDeadline) {
+        completeBreachCount++;
+        if (row.FCM_TOKEN) {
+          await sendNotification(
+            row.FCM_TOKEN,
+            '⏰ SLA2 Breach',
+            `Room ${row.FACILITY_CKD_ROOMNO} assigned but not completed within SLA`
+          );
+        }
+      }
+    }
+
+    res.json({
+      status: 'done',
+      assignBreachNotified: assignBreachCount,
+      completeBreachNotified: completeBreachCount,
+    });
+  } catch (err) {
+    console.error('❌ DB Error:', err);
+    res.status(500).json({ error: 'SLA check failed', details: err.message });
+  }
+});
+
+app.post('/update-token', async (req, res) => {
+  const { USERID, FCM_TOKEN } = req.body;
+
+  try {
+    const pool = await sql.connect(dbConfig);
+    const result = await pool.request()
+      .input('USERID', sql.VarChar, USERID)
+      .input('FCM_TOKEN', sql.VarChar, FCM_TOKEN)
+      .query(`
+        UPDATE LOGIN
+        SET FCM_TOKEN = @FCM_TOKEN
+        WHERE USERID = @USERID
+      `);
+
+    // ✅ Check if any row was updated
+    if (result.rowsAffected[0] > 0) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ success: false, message: `USERID '${userId}' not found` });
+    }
+  } catch (err) {
+    console.error('❌ Error updating token:', err);
+    res.status(500).json({ error: 'Failed to update token' });
+  }
+});
+
+
+
+
+// GET /notifications/:department/today
+app.get('/notifications/:department/today', async (req, res) => {
+  const department = req.params.department;
+
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    const result = await pool.request()
+      .input('DeptName', sql.NVarChar(100), department)
+      .query(`
+        SELECT * FROM SLA_Notifications
+        WHERE DeptName = @DeptName
+          AND CONVERT(date, BreachDateTime) = CONVERT(date, GETDATE())
+        ORDER BY BreachDateTime DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching today\'s notifications:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+
+
+// API for Nursing Discharge Task ===========================================
+
+
+
+
+app.post('/api/getnursingdischargeStatus', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
+
+    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
+    }
+
+    const steps = [
+        { key: 'PHARMACY_CLEARANCE', table: 'DT_P1_NURSE_STATION', column: 'PHARMACY_CLEARANCE', statusValue: 1 },
+        { key: 'LAB_CLEARANCE', table: 'DT_P1_NURSE_STATION', column: 'LAB_CLEARANCE', statusValue: 1 },
+        { key: 'CONSUMABLE_CLEARANCE', table: 'DT_P1_NURSE_STATION', column: 'CONSUMABLE_CLEARANCE', statusValue: 1 },
+        { key: 'PATIENT_CHECKOUT', table: 'BED_DETAILS', column: 'STATUS', statusValue: 3 },
+        // ⭐ Facility check step
+        { key: 'FILE TRANSFRED TO DS', table: 'FACILITY_CHECK_DETAILS', column: 'TKT_STATUS', statusValue:[0, 1, 2], facility: true }
+    ];
+
+    try {
+        let pool = await sql.connect(dbConfig);
+        let resultObj = {};
+
+        for (let step of steps) {
+            let query;
+
+            if (step.facility) {
+                query = `
+                    SELECT ${step.column} AS status
+                    FROM ${step.table}
+                    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                      AND RTRIM(LTRIM(MRNO)) = @mrno
+                      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = @dept
+                `;
+            } else {
+                query = `
+                    SELECT ${step.column} AS status
+                    FROM ${step.table}
+                    WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                      AND RTRIM(LTRIM(MRNO)) = @mrno
+                      AND RTRIM(LTRIM(FTID)) = @ftid
+                `;
+            }
+
+            let request = pool.request()
+                .input('roomno', sql.VarChar, ROOMNO.trim())
+                .input('mrno', sql.VarChar, MRNO.trim())
+                .input('ftid', sql.VarChar, FTID.trim());
+
+            if (step.facility) request.input('dept', sql.VarChar, DEPT.trim());
+
+            const result = await request.query(query);
+
+            if (result.recordset.length > 0) {
+                const row = result.recordset[0];
+                // ✅ Use row.status and return boolean for facility
+                resultObj[step.key] = Number(row.status) === step.statusValue;
+            } else {
+                resultObj[step.key] = false;
+            }
+        }
+
+        res.json(resultObj);
+
+    } catch (err) {
+        console.error('❌ Discharge Status Error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+});
+
+
+
+
+
+
+
+
+//=========UPDATE D-TRACKER NURSE TASK =========
+
+app.post('/api/updateD-TRACKNURSEStep', async (req, res) => {
+    const { table, roomno, mrno, ftid, column, value } = req.body;
+
+    if (!table || !roomno || !mrno || !ftid || !column) {
+        return res.status(400).json({
+            message: "table, roomno, mrno, ftid, and column are required"
+        });
+    }
+
+    try {
+        let pool = await sql.connect(dbConfig);
+
+        const query = `
+            UPDATE ${table}
+            SET ${column} = @value
+            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FTID)) = @ftid
+             
+        `;
+
+        await pool.request()
+            .input("value", sql.Int, value)
+            .input("roomno", sql.VarChar, roomno.trim())
+            .input("mrno", sql.VarChar, mrno.trim())
+            .input("ftid", sql.VarChar, ftid.trim())
+            
+            .query(query);
+
+        res.json({ message: "Updated successfully" });
+
+    } catch (err) {
+        console.error("❌ Update Error:", err);
+        res.status(500).json({
+            message: "Server Error",
+            error: err.message
+        });
+    }
+});
+
+
+//=========UPDATE D-TRACKER NURSE TASK =========
+
+
+
+
+
 // ✅ Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
+    console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
 });

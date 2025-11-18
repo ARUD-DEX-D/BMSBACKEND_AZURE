@@ -1,0 +1,72 @@
+[23/7/2025, 11:41:23 am] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 11:47:28 am] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 1:54:49 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 2:01:01 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 2:11:00 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 2:40:37 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 3:56:30 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 3:57:34 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:01:44 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 4:03:19 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 4:05:03 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:06:04 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:08:00 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:10:02 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:12:06 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:26:32 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:27:37 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:28:38 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 4:29:01 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 4:29:18 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 4:30:11 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 4:49:17 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 5:10:11 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 5:11:06 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 5:23:36 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 5:24:53 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 5:26:12 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 5:26:35 pm] ✅ Notification sent to Electrical
+Ticket:6  Room:936 🔴Completion SLA Breached
+[23/7/2025, 5:27:26 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached
+[23/7/2025, 10:57:50 pm] ✅ Notification sent to Electrical
+Ticket:5  Room:975 🟠🔴Both SLA Breached

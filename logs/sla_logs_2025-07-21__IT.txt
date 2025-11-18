@@ -1,0 +1,25 @@
+
+[22/7/2025, 12:24:18 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🔴Completion SLA Breached
+[22/7/2025, 12:30:04 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 12:31:47 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🔴Completion SLA Breached
+[22/7/2025, 12:45:09 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🔴Completion SLA Breached
+[22/7/2025, 12:47:59 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🔴Completion SLA Breached
+[22/7/2025, 12:50:50 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 12:56:27 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 1:03:20 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 1:06:48 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 1:09:27 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 2:09:23 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[22/7/2025, 2:10:18 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached

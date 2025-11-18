@@ -1,0 +1,66 @@
+[20/7/2025, 4:15:19 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:15:19 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:14 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:14 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:24 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:24 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:33 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:34 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:41 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:41 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:52 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:17:53 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:28:35 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:28:35 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:38:47 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:38:47 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:39:42 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:39:43 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:40:16 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:40:16 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:40:50 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:40:50 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:40:59 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:40:59 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:09 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:09 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:15 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:15 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:22 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:22 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:40 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 4:41:40 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 5:05:07 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 5:05:07 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 5:12:16 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 5:12:16 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:03:30 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:03:30 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:04:44 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:04:44 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:04:58 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:04:59 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:05:22 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:05:22 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:06:58 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:06:58 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:07:26 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:07:26 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:07:37 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:07:37 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:07:47 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:07:47 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:31:44 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:31:44 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:32:59 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:00 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:08 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:08 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:18 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:18 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:32 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:33:32 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:53:33 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:53:33 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:53:57 pm] ✅ Notification sent to Electrical | 🟠 Assign SLA Breaches: 1 | 🔴 Completion SLA Breaches: 1
+[20/7/2025, 6:53:57 pm] ✅ Notification sent to IT | 🔴 Completion SLA Breaches: 1

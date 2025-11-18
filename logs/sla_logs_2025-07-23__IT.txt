@@ -1,0 +1,46 @@
+[23/7/2025, 5:28:37 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 5:30:26 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 5:31:51 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 10:52:59 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 10:54:18 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 10:54:58 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 10:55:37 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 10:57:49 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 10:58:35 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:05:47 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:06:36 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:10:10 pm] ✅ Notification sent to IT
+Ticket:2  Room:956 🟠🔴Both SLA Breached
+[23/7/2025, 11:12:23 pm] ✅ Notification sent to IT
+Ticket:2  Room:956 🟠🔴Both SLA Breached
+[23/7/2025, 11:28:18 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:29:08 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:35:36 pm] ✅ Notification sent to IT
+Ticket:2  Room:956 🟠🔴Both SLA Breached
+[23/7/2025, 11:40:38 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:41:10 pm] ✅ Notification sent to IT
+Ticket:2  Room:956 🟠🔴Both SLA Breached
+[23/7/2025, 11:41:56 pm] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[23/7/2025, 11:47:56 pm] ✅ Notification sent to IT
+Ticket:2  Room:956 🟠🔴Both SLA Breached
+[24/7/2025, 12:00:12 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
+[24/7/2025, 12:29:09 am] ✅ Notification sent to IT
+Ticket:2  Room:956 🟠🔴Both SLA Breached
+[24/7/2025, 1:09:21 am] ✅ Notification sent to IT
+Ticket:1  Room:936 🟠🔴Both SLA Breached
