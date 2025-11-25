@@ -40,8 +40,9 @@ console.log('Connecting to:', process.env.DB_SERVER);
 
 // ✅ Test DB connection at startup
 sql.connect(dbConfig)
-  .then(() => console.log('✅ Connected to cloud MSSQL'))
+  .then(() => console.log('✅ Connected to Azure SQL'))
   .catch(err => console.error('❌ DB Connection Failed:', err));
+
 
 // ✅ POST /insert
 app.post('/insert', async (req, res) => {
@@ -623,6 +624,7 @@ app.post('/api/updateD-TRACKNURSEStep', async (req, res) => {
 
 
 //=========UPDATE D-TRACKER NURSE TASK =========
+
 
 
 
