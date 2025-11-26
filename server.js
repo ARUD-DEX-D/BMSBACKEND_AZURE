@@ -630,6 +630,118 @@ app.post('/api/updateD-TRACKNURSEStep', async (req, res) => {
 
 
 
+// API for PHARMACY Discharge Task ===========================================
+
+
+
+
+
+app.post('/api/getpharmacydischargeStatus', async (req, res) => {
+    const { ROOMNO, MRNO, FTID } = req.body;
+
+    if (!ROOMNO || !MRNO || !FTID) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO, and FTID are required' });
+    }
+
+    // ⭐ IST time conversion
+    function convertToIST(dateValue) {
+        if (!dateValue) return null;
+
+        const date = new Date(dateValue);
+        const IST = new Date(date.getTime() + (5.5 * 60 * 60 * 1000)); // UTC + 5:30
+
+        const formatted =
+            IST.getDate().toString().padStart(2, '0') + '-' +
+            (IST.getMonth() + 1).toString().padStart(2, '0') + '-' +
+            IST.getFullYear() + ' ' +
+            IST.getHours().toString().padStart(2, '0') + ':' +
+            IST.getMinutes().toString().padStart(2, '0') + ':' +
+            IST.getSeconds().toString().padStart(2, '0');
+
+        return formatted;
+    }
+
+    // ⭐ Steps without DEPT
+    const steps = [
+        {
+            key: "PHARMACY_FILE_INITIATION",
+            table: "DT_P3_PHARMACY",
+            statusColumn: "PHARMACY_FILE_INITIATION",
+            timeColumn: "PHARMACY_FILE_INITIATION_TIME",
+            statusValue: 1
+        },
+        {
+            key: "PHARMACY_COMPLETED",
+            table: "DT_P3_PHARMACY",
+            statusColumn: "PHARMACY_COMPLETED",
+            timeColumn: "PHARMACY_COMPLETED_TIME",
+            statusValue: 1
+        },
+        {
+            key: "FILE_DISPATCHED",
+            table: "DT_P3_PHARMACY",
+            statusColumn: "FILE_DISPATCHED",
+            timeColumn: "FILE_DISPATCHED_TIME",
+            statusValue: 1
+        }
+    ];
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        let resultObj = {};
+
+        for (let step of steps) {
+            const query = `
+                SELECT 
+                    ${step.statusColumn} AS status,
+                    ${step.timeColumn} AS time
+                FROM ${step.table}
+                WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                  AND RTRIM(LTRIM(MRNO)) = @mrno
+                  AND RTRIM(LTRIM(FTID)) = @ftid
+            `;
+
+            const request = pool.request()
+                .input('roomno', sql.VarChar, ROOMNO.trim())
+                .input('mrno', sql.VarChar, MRNO.trim())
+                .input('ftid', sql.VarChar, FTID.trim());
+
+            const result = await request.query(query);
+
+            if (result.recordset.length > 0) {
+                const row = result.recordset[0];
+
+                resultObj[step.key] = {
+                    status: Number(row.status) === step.statusValue,
+                    time: convertToIST(row.time)
+                };
+            } else {
+                resultObj[step.key] = {
+                    status: false,
+                    time: null
+                };
+            }
+        }
+
+        res.json(resultObj);
+
+    } catch (err) {
+        console.error("❌ Pharmacy Status Error:", err);
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+
+
+
+// API for PHARMACY Discharge Task ===========================================
+
+
+
+
+
+
+
 // ✅ Start server
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
