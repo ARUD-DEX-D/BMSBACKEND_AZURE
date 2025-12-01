@@ -1,15 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-//const sql = require('mssql/msnodesqlv8');
-const sql = require('mssql');   // ✅ Works on Azure
-app.use(express.json());   // ⭐ REQUIRED
+const sql = require('mssql');   // Works on Azure
 
-const app = express();
+const app = express();          // ✅ Initialize app first
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json());        // ✅ Now it works
 
 const dbConfig = {
   server: 'DESKTOP-QSJC5FP',
