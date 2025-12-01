@@ -9,14 +9,26 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());        // ✅ Now it works
 
+// const dbConfig = {
+//   server: 'DESKTOP-QSJC5FP',
+//   database: 'BED_TRACKING_SYSTEM',
+//   driver: 'msnodesqlv8',
+//   options: {
+//     trustedConnection: true
+//   }
+// };
+
 const dbConfig = {
-  server: 'DESKTOP-QSJC5FP',
-  database: 'BED_TRACKING_SYSTEM',
-  driver: 'msnodesqlv8',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  server: process.env.DB_SERVER,   // example: bmsdbserver.database.windows.net
+  database: process.env.DB_NAME,
   options: {
-    trustedConnection: true
+    encrypt: true,         // Required for Azure SQL
+    trustServerCertificate: false
   }
 };
+
 
 console.log('Connecting to:', process.env.DB_SERVER);
 
