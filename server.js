@@ -1603,6 +1603,256 @@ app.post('/api/getbillingdischargeStatus', async (req, res) => {
 
 
 
+
+
+
+
+
+
+app.post('/api/getinsurancedischargeStatus', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
+
+    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
+    }
+
+    // Insurance Steps
+    const steps = [
+        { key: "INSURANCE_FILE_SIGNIN", table: "DT_P5_INSURANCE", statusColumn: "INSURANCE_FILE_SIGNIN", timeColumn: "INSURANCE_FILE_SIGNIN_TIME", doneValue: [1] },
+        { key: "INSURANCE_FILE_INITIATION", table: "DT_P5_INSURANCE", statusColumn: "INSURANCE_FILE_INITIATION", timeColumn: "INSURANCE_FILE_INITIATION_TIME", doneValue: [1] },
+        { key: "INSURANCE_FILE_COMPLETED", table: "DT_P5_INSURANCE", statusColumn: "INSURANCE_FILE_COMPLETED", timeColumn: "INSURANCE_FILE_COMPLETED_TIME", doneValue: [1] },
+        { key: "INSURANCE_FILE_DISPATCHED", table: "DT_P5_INSURANCE", statusColumn: "INSURANCE_FILE_DISPATCHED", timeColumn: "INSURANCE_FILE_DISPATCHED_TIME", doneValue: [1] },
+    ];
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        let resultObj = {};
+        let nextStep = null;
+
+        for (let step of steps) {
+
+            let request = pool.request()
+                .input('roomno', sql.VarChar, ROOMNO.trim())
+                .input('mrno', sql.VarChar, MRNO.trim())
+                .input('ftid', sql.VarChar, FTID.trim());
+
+            const query = `
+                SELECT ${step.statusColumn} AS status, ${step.timeColumn} AS time
+                FROM ${step.table}
+                WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                  AND RTRIM(LTRIM(MRNO)) = @mrno
+                  AND RTRIM(LTRIM(FTID)) = @ftid
+            `;
+
+            const result = await request.query(query);
+            const row = result.recordset[0];
+
+            let done = false;
+            if (row) {
+                if (Array.isArray(step.doneValue)) {
+                    done = step.doneValue.includes(Number(row.status));
+                } else {
+                    done = Number(row.status) === step.doneValue;
+                }
+            }
+
+            resultObj[step.key] = {
+                status: done,
+                time: row?.time ? convertToIST(row.time) : null
+            };
+
+            if (!done && !nextStep) nextStep = step.key;
+        }
+
+        resultObj["nextStep"] = nextStep;
+
+        res.json(resultObj);
+
+    } catch (err) {
+        console.error("❌ Insurance Status Error:", err);
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+
+
+
+app.post('/api/UPDATE_INSURANCE_WORKFLOW', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, steps, user, DEPT } = req.body;
+
+    if (!ROOMNO || !MRNO || !FTID || !steps) {
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    try {
+        const pool = await sql.connect(dbConfig);
+
+        // Convert to IST correctly
+        const now = new Date();
+        now.setHours(now.getHours() + 5);
+        now.setMinutes(now.getMinutes() + 30);
+        const formattedTime = now.toISOString().replace("T", " ").split(".")[0];
+
+        // 🔍 Step 1: Check if insurance record exists
+        const existsCheck = await pool.request()
+            .input("roomno", ROOMNO)
+            .input("mrno", MRNO)
+            .input("ftid", FTID)
+            .query(`
+                SELECT * FROM DT_P5_INSURANCE
+                WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FTID))=@ftid
+            `);
+
+        if (existsCheck.recordset.length === 0) {
+            return res.status(404).json({ 
+                message: "No matching insurance record found. QR code mismatch." 
+            });
+        }
+
+        // Step Update Functions
+        const stepFunctions = {
+
+            INSURANCE_FILE_SIGNIN: async () => {
+                return await pool.request()
+                    .input("value", sql.Int, 1)
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE DT_P5_INSURANCE
+                        SET INSURANCE_FILE_SIGNIN = @value,
+                            INSURANCE_FILE_SIGNIN_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
+                    `);
+            },
+
+            INSURANCE_FILE_INITIATION: async () => {
+                return await pool.request()
+                    .input("value", sql.Int, 1)
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE DT_P5_INSURANCE
+                        SET INSURANCE_FILE_INITIATION = @value,
+                            INSURANCE_FILE_INITIATION_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
+                    `);
+            },
+
+            INSURANCE_FILE_COMPLETED: async () => {
+                return await pool.request()
+                    .input("value", sql.Int, 1)
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE DT_P5_INSURANCE
+                        SET INSURANCE_FILE_COMPLETED = @value,
+                            INSURANCE_FILE_COMPLETED_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
+                    `);
+            },
+
+            INSURANCE_FILE_DISPATCHED: async () => {
+
+                // Update insurance table
+                await pool.request()
+                    .input("value", sql.Int, 1)
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE DT_P5_INSURANCE
+                        SET INSURANCE_FILE_DISPATCHED = @value,
+                            INSURANCE_FILE_DISPATCHED_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
+                    `);
+
+                // Close Insurance Ticket
+                await pool.request()
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE FACILITY_CHECK_DETAILS
+                        SET TKT_STATUS = 2
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+                          AND FACILITY_CKD_DEPT='INSURANCE'
+                    `);
+
+                // Open Pharmacy Ticket
+                await pool.request()
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE FACILITY_CHECK_DETAILS
+                        SET TKT_STATUS = 0
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+                          AND FACILITY_CKD_DEPT='PHARMACY'
+                    `);
+
+                // Update BED_DETAILS
+                await pool.request()
+                    .input("roomno", ROOMNO)
+                    .input("mrno", MRNO)
+                    .input("ftid", FTID)
+                    .query(`
+                        UPDATE BED_DETAILS
+                        SET INSURANCE = 1
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
+                    `);
+            }
+        };
+
+        // 🔹 Execute selected steps
+        for (const key in steps) {
+            if (steps[key] && stepFunctions[key]) {
+                await stepFunctions[key]();
+            }
+        }
+
+        res.json({ message: "Insurance workflow updated successfully" });
+
+    } catch (err) {
+        console.error("❌ INSURANCE WORKFLOW ERROR:", err);
+        res.status(500).json({ message: "Server Error", error: err.message });
+    }
+});
+
+
+
+
+
 // ✅ Start server
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
