@@ -194,6 +194,7 @@ app.post('/login', async (req, res) => {
 app.post('/close-ticket', async (req, res) => {
   let { ROOMNO, USERID, DEPT, FTID } = req.body;
 
+  // Trim values
   ROOMNO = ROOMNO?.toString().trim();
   USERID = USERID?.toString().trim();
   DEPT = DEPT?.toString().trim();
@@ -206,7 +207,7 @@ app.post('/close-ticket', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // Step 1 — Get SLA values
+    // Step 1: Fetch SLA values + timestamps
     const result = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
@@ -215,6 +216,7 @@ app.post('/close-ticket', async (req, res) => {
         SELECT 
           F.DISC_RECOM_TIME, 
           F.ASSIGNED_TIME,
+          F.COMPLETED_TIME,
           D.AssignSLA_Min,
           D.CompletionSLA_Min
         FROM FACILITY_CHECK_DETAILS F
@@ -230,8 +232,9 @@ app.post('/close-ticket', async (req, res) => {
       return res.status(404).json({ message: 'Ticket not found or already closed.' });
     }
 
-    // SLA calculations...
+    // SLA logic
     const row = result.recordset[0];
+
     const disc = new Date(row.DISC_RECOM_TIME);
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
     const completed = new Date();
@@ -240,6 +243,7 @@ app.post('/close-ticket', async (req, res) => {
     const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
 
     let slaStatus = 0;
+
     const assignExceeded = assigned && assigned > assignDeadline;
     const completeExceeded = completed > completeDeadline;
 
@@ -249,7 +253,7 @@ app.post('/close-ticket', async (req, res) => {
     else if (completeExceeded) slaStatus = 3;
     else slaStatus = 5;
 
-    // Step 2 — Close ticket
+    // Step 2: Close Ticket
     await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
@@ -270,8 +274,8 @@ app.post('/close-ticket', async (req, res) => {
           AND TKT_STATUS != 2
       `);
 
-    // Step 3 — Department to BED_DETAILS mapping
-    const deptColumnMapping = {
+    // Step 3: Dynamic BED_DETAILS column selection
+    const allowedDeptColumns = {
       "IT": "IT",
       "ELECTRICAL": "ELECTRICAL",
       "BIOMEDICAL": "BIOMEDICAL",
@@ -279,17 +283,22 @@ app.post('/close-ticket', async (req, res) => {
       "HOUSEKEEPING": "STATUS"
     };
 
-    const deptColumn = deptColumnMapping[DEPT.toUpperCase()];
+    const deptKey = DEPT.toUpperCase();
+    const deptColumn = allowedDeptColumns[deptKey];
+
     if (!deptColumn) {
-      return res.status(400).json({ error: `Invalid department ${DEPT}` });
+      return res.status(400).json({
+        error: `Invalid department '${DEPT}'. Cannot update BED_DETAILS`
+      });
     }
 
-    // Step 4 — Set value based on department
-    const updateValue = DEPT.toUpperCase() === "HOUSEKEEPING" ? 0 : 1;
+    // ✔ Housekeeping → 0
+    // ✔ All others → 1
+    const updateValue = deptKey === "HOUSEKEEPING" ? 0 : 1;
 
     const bedUpdateQuery = `
       UPDATE BED_DETAILS
-      SET ${deptColumn} = ${updateValue}
+      SET ${deptColumn} = @UpdateValue
       WHERE LTRIM(RTRIM(ROOMNO)) = @ROOMNO
         AND LTRIM(RTRIM(FTID)) = @FTID
     `;
@@ -297,6 +306,7 @@ app.post('/close-ticket', async (req, res) => {
     await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('FTID', sql.NVarChar(100), FTID)
+      .input('UpdateValue', sql.Int, updateValue)  // 🔥 FIXED!
       .query(bedUpdateQuery);
 
     return res.json({
@@ -306,10 +316,11 @@ app.post('/close-ticket', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Close Ticket Error:", err);
+    console.error('Close Ticket Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
