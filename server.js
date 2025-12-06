@@ -194,7 +194,7 @@ app.post('/login', async (req, res) => {
 app.post('/close-ticket', async (req, res) => {
   let { ROOMNO, USERID, DEPT, FTID } = req.body;
 
-  // Trim inputs
+  // Trim input values
   ROOMNO = ROOMNO?.toString().trim();
   USERID = USERID?.toString().trim();
   DEPT = DEPT?.toString().trim();
@@ -232,7 +232,7 @@ app.post('/close-ticket', async (req, res) => {
       return res.status(404).json({ message: 'Ticket not found or already closed.' });
     }
 
-    // SLA Calculations
+    // Step 2: SLA calculations
     const row = result.recordset[0];
     const disc = new Date(row.DISC_RECOM_TIME);
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
@@ -242,7 +242,6 @@ app.post('/close-ticket', async (req, res) => {
     const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
 
     let slaStatus = 0;
-
     const assignExceeded = assigned && assigned > assignDeadline;
     const completeExceeded = completed > completeDeadline;
 
@@ -252,7 +251,7 @@ app.post('/close-ticket', async (req, res) => {
     else if (completeExceeded) slaStatus = 3;
     else slaStatus = 5; // SLA success
 
-    // Step 2: Close Ticket
+    // Step 3: Close the ticket
     await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
@@ -273,24 +272,21 @@ app.post('/close-ticket', async (req, res) => {
           AND TKT_STATUS != 2
       `);
 
-    // Step 3: Dynamic BED_DETAILS Update
+    // Step 4: Dynamic BED_DETAILS column update
     const allowedDeptColumns = {
       "IT": "IT",
       "ELECTRICAL": "ELECTRICAL",
       "BIOMEDICAL": "BIOMEDICAL",
       "MAINTANANCE": "MAINTANANCE",
-      "HOUSEKEEPING": "STATUS"
+      "HOUSEKEEPING": "[STATUS]"  // Use brackets for reserved keyword
     };
 
     const deptColumn = allowedDeptColumns[DEPT.toUpperCase()];
-
     if (!deptColumn) {
-      return res.status(400).json({
-        error: `Invalid department '${DEPT}'. Cannot update BED_DETAILS`
-      });
+      return res.status(400).json({ error: `Invalid department '${DEPT}' for BED_DETAILS update` });
     }
 
-    // Value to set
+    // Housekeeping sets STATUS = 0, others set respective column = 1
     const updateValue = (DEPT.toUpperCase() === "HOUSEKEEPING") ? 0 : 1;
 
     const updateBedQuery = `
@@ -306,7 +302,7 @@ app.post('/close-ticket', async (req, res) => {
       .input('Value', sql.Int, updateValue)
       .query(updateBedQuery);
 
-    // Final Response
+    // Step 5: Send response
     return res.json({
       success: true,
       message: 'Ticket closed successfully',
