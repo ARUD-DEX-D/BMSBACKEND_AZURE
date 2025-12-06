@@ -194,7 +194,7 @@ app.post('/login', async (req, res) => {
 app.post('/close-ticket', async (req, res) => {
   let { ROOMNO, USERID, DEPT, FTID } = req.body;
 
-  // Trim values
+  // Trim inputs
   ROOMNO = ROOMNO?.toString().trim();
   USERID = USERID?.toString().trim();
   DEPT = DEPT?.toString().trim();
@@ -232,12 +232,11 @@ app.post('/close-ticket', async (req, res) => {
       return res.status(404).json({ message: 'Ticket not found or already closed.' });
     }
 
-    // SLA logic
+    // SLA Calculations
     const row = result.recordset[0];
-
     const disc = new Date(row.DISC_RECOM_TIME);
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
-    const completed = new Date();
+    const completed = new Date(); // current time
 
     const assignDeadline = new Date(disc.getTime() + row.AssignSLA_Min * 60000);
     const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
@@ -251,7 +250,7 @@ app.post('/close-ticket', async (req, res) => {
     else if (assignExceeded && completeExceeded) slaStatus = 4;
     else if (assignExceeded) slaStatus = 2;
     else if (completeExceeded) slaStatus = 3;
-    else slaStatus = 5;
+    else slaStatus = 5; // SLA success
 
     // Step 2: Close Ticket
     await pool.request()
@@ -274,7 +273,7 @@ app.post('/close-ticket', async (req, res) => {
           AND TKT_STATUS != 2
       `);
 
-    // Step 3: Dynamic BED_DETAILS column selection
+    // Step 3: Dynamic BED_DETAILS Update
     const allowedDeptColumns = {
       "IT": "IT",
       "ELECTRICAL": "ELECTRICAL",
@@ -283,8 +282,7 @@ app.post('/close-ticket', async (req, res) => {
       "HOUSEKEEPING": "STATUS"
     };
 
-    const deptKey = DEPT.toUpperCase();
-    const deptColumn = allowedDeptColumns[deptKey];
+    const deptColumn = allowedDeptColumns[DEPT.toUpperCase()];
 
     if (!deptColumn) {
       return res.status(400).json({
@@ -292,13 +290,12 @@ app.post('/close-ticket', async (req, res) => {
       });
     }
 
-    // ✔ Housekeeping → 0
-    // ✔ All others → 1
-    const updateValue = deptKey === "HOUSEKEEPING" ? 0 : 1;
+    // Value to set
+    const updateValue = (DEPT.toUpperCase() === "HOUSEKEEPING") ? 0 : 1;
 
-    const bedUpdateQuery = `
+    const updateBedQuery = `
       UPDATE BED_DETAILS
-      SET ${deptColumn} = @UpdateValue
+      SET ${deptColumn} = @Value
       WHERE LTRIM(RTRIM(ROOMNO)) = @ROOMNO
         AND LTRIM(RTRIM(FTID)) = @FTID
     `;
@@ -306,9 +303,10 @@ app.post('/close-ticket', async (req, res) => {
     await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('FTID', sql.NVarChar(100), FTID)
-      .input('UpdateValue', sql.Int, updateValue)  // 🔥 FIXED!
-      .query(bedUpdateQuery);
+      .input('Value', sql.Int, updateValue)
+      .query(updateBedQuery);
 
+    // Final Response
     return res.json({
       success: true,
       message: 'Ticket closed successfully',
