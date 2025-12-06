@@ -248,7 +248,7 @@ app.post('/close-ticket', async (req, res) => {
     const update = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
-      .input('FTID', sql.Int, FTID)
+      .input('FTID', sql.NVarChar(100), FTID)
       .input('USERID', sql.NVarChar(100), USERID)
       .input('STATUS', sql.Int, slaStatus)
       .input('TKT_STATUS', sql.Int, 1)
