@@ -192,27 +192,26 @@ app.post('/login', async (req, res) => {
 
 
 app.post('/close-ticket', async (req, res) => {
-  let { ROOMNO, USERID, DEPT, FTID } = req.body;
+  const { ROOMNO, USERID, DEPT, FTID } = req.body;
 
-  // Trim strings to avoid whitespace issues
-  ROOMNO = ROOMNO?.toString().trim();
-  USERID = USERID?.toString().trim();
-  DEPT = DEPT?.toString().trim();
-  FTID = FTID?.toString().trim();
-
-  // Validate required fields
   if (!ROOMNO || !USERID || !DEPT || !FTID) {
-    return res.status(400).json({ error: 'ROOMNO, DEPT, USERID, and FTID are required' });
+    return res.status(400).json({ error: 'ROOMNO, DEPT, USERID and FTID are required' });
   }
 
   try {
     const pool = await sql.connect(dbConfig);
 
-    // Step 1: Fetch ticket details
+    // Trim input values
+    const roomNoTrimmed = ROOMNO.trim();
+    const deptTrimmed = DEPT.trim();
+    const ftidTrimmed = FTID.trim();
+    const userIdTrimmed = USERID.trim();
+
+    // Fetch ticket
     const result = await pool.request()
-      .input('ROOMNO', sql.NVarChar(100), ROOMNO)
-      .input('DEPT', sql.NVarChar(100), DEPT)
-      .input('FTID', sql.NVarChar(100), FTID)
+      .input('ROOMNO', sql.NVarChar(100), roomNoTrimmed)
+      .input('DEPT', sql.NVarChar(100), deptTrimmed)
+      .input('FTID', sql.NVarChar(100), ftidTrimmed)
       .query(`
         SELECT 
           F.DISC_RECOM_TIME, 
@@ -237,7 +236,6 @@ app.post('/close-ticket', async (req, res) => {
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
     const completed = new Date();
 
-    // SLA calculation
     const assignDeadline = new Date(disc.getTime() + row.AssignSLA_Min * 60000);
     const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
 
@@ -249,14 +247,14 @@ app.post('/close-ticket', async (req, res) => {
     else if (assignExceeded && completeExceeded) slaStatus = 4;
     else if (assignExceeded) slaStatus = 2;
     else if (completeExceeded) slaStatus = 3;
-    else slaStatus = 5; // Done in SLA
+    else slaStatus = 5;
 
-    // Step 2: Close ticket
+    // Update ticket
     await pool.request()
-      .input('ROOMNO', sql.NVarChar(100), ROOMNO)
-      .input('DEPT', sql.NVarChar(100), DEPT)
-      .input('FTID', sql.NVarChar(100), FTID)
-      .input('USERID', sql.NVarChar(100), USERID)
+      .input('ROOMNO', sql.NVarChar(100), roomNoTrimmed)
+      .input('DEPT', sql.NVarChar(100), deptTrimmed)
+      .input('FTID', sql.NVarChar(100), ftidTrimmed)
+      .input('USERID', sql.NVarChar(100), userIdTrimmed)
       .input('STATUS', sql.Int, slaStatus)
       .input('TKT_STATUS', sql.Int, 1)
       .query(`
@@ -266,17 +264,13 @@ app.post('/close-ticket', async (req, res) => {
           USERID = @USERID,
           STATUS = @STATUS,
           TKT_STATUS = @TKT_STATUS
-        WHERE LTRIM(RTRIM(FACILITY_CKD_ROOMNO)) = @ROOMNO 
+        WHERE LTRIM(RTRIM(FACILITY_CKD_ROOMNO)) = @ROOMNO
           AND LTRIM(RTRIM(FACILITY_CKD_DEPT)) = @DEPT
           AND LTRIM(RTRIM(FACILITY_TID)) = @FTID
           AND TKT_STATUS != 1
       `);
 
-    return res.json({
-      success: true,
-      message: 'Ticket closed successfully',
-      slaStatus
-    });
+    return res.json({ success: true, message: 'Ticket closed successfully', slaStatus });
 
   } catch (err) {
     console.error('Close Ticket Error:', err);
