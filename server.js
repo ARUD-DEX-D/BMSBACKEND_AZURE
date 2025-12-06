@@ -278,9 +278,9 @@ app.post('/close-ticket', async (req, res) => {
     const allowedDeptColumns = {
       "IT": "IT",
       "ELECTRICAL": "ELECTRICAL",
-      "PLUMBING": "PLUMBING",
-      "HK": "HK",
-      "HVAC": "HVAC"
+      "BIOMEDICAL": "BIOMEDICAL",
+      "MAINTANANCE": "MAINTANANCE",
+      "HOUSEKEEPING": "HOUSEKEEPING"
     };
 
     const deptColumn = allowedDeptColumns[DEPT.toUpperCase()];
