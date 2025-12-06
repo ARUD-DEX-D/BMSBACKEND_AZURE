@@ -224,7 +224,7 @@ app.post('/close-ticket', async (req, res) => {
         WHERE LTRIM(RTRIM(F.FACILITY_CKD_ROOMNO)) = @ROOMNO
           AND LTRIM(RTRIM(F.FACILITY_CKD_DEPT)) = @DEPT
           AND LTRIM(RTRIM(F.FACILITY_TID)) = @FTID
-          AND F.TKT_STATUS != 1
+          AND F.TKT_STATUS != 2
       `);
 
     if (result.recordset.length === 0) {
@@ -257,7 +257,7 @@ app.post('/close-ticket', async (req, res) => {
       .input('FTID', sql.NVarChar(100), FTID)
       .input('USERID', sql.NVarChar(100), USERID)
       .input('STATUS', sql.Int, slaStatus)
-      .input('TKT_STATUS', sql.Int, 1)
+      .input('TKT_STATUS', sql.Int, 2)
       .query(`
         UPDATE FACILITY_CHECK_DETAILS
         SET 
@@ -268,7 +268,7 @@ app.post('/close-ticket', async (req, res) => {
         WHERE LTRIM(RTRIM(FACILITY_CKD_ROOMNO)) = @ROOMNO
           AND LTRIM(RTRIM(FACILITY_CKD_DEPT)) = @DEPT
           AND LTRIM(RTRIM(FACILITY_TID)) = @FTID
-          AND TKT_STATUS != 1
+          AND TKT_STATUS != 2
       `);
 
     return res.json({
