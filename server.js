@@ -192,108 +192,87 @@ app.post('/login', async (req, res) => {
 
 
 app.post('/close-ticket', async (req, res) => {
-  const { ROOMNO, USERID } = req.body;
+  const { ROOMNO, USERID, DEPT, FTID } = req.body;
 
-  if (!ROOMNO || !USERID) {
-    return res.status(400).json({ error: 'ROOMNO and USERID are required' });
+  if (!ROOMNO || !USERID || !DEPT || !FTID) {
+    return res.status(400).json({ error: 'ROOMNO, DEPT, USERID and FTID are required' });
   }
 
   try {
     const pool = await sql.connect(dbConfig);
 
-    // Step 1: Get DISC_RECOM_TIME, ASSIGNED_TIME, SLA values
+    // Step 1: Fetch dates + SLA
     const result = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
+      .input('DEPT', sql.NVarChar(100), DEPT)
+      .input('FTID', sql.Int, FTID)
       .query(`
         SELECT 
           F.DISC_RECOM_TIME, 
-          F.ASSIGNED_TIME, 
-          F.COMPLETED_TIME,
-          D.AssignSLA_Min, 
+          F.ASSIGNED_TIME,
+          D.AssignSLA_Min,
           D.CompletionSLA_Min
         FROM FACILITY_CHECK_DETAILS F
-        JOIN Facility_Dept_Master D ON F.FACILITY_CKD_DEPT = D.DEPTName
+        JOIN Facility_Dept_Master D 
+            ON F.FACILITY_CKD_DEPT = D.DEPTName
         WHERE F.FACILITY_CKD_ROOMNO = @ROOMNO
+          AND F.FACILITY_CKD_DEPT = @DEPT
+          AND F.FTID = @FTID
+          AND F.TKT_STATUS != 1
       `);
 
     if (result.recordset.length === 0) {
-      return res.status(404).json({ message: 'Room not found.' });
+      return res.status(404).json({ message: 'Ticket not found or already closed.' });
     }
 
     const row = result.recordset[0];
-
     const disc = new Date(row.DISC_RECOM_TIME);
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
-    const completed = new Date(); // Now
-    const assignSLA = row.AssignSLA_Min;
-    const completeSLA = row.CompletionSLA_Min;
+    const completed = new Date(); // now
 
-    let newStatus = 0; // Default: not assigned
+    const assignDeadline = new Date(disc.getTime() + row.AssignSLA_Min * 60000);
+    const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
 
-    if (!assigned && !completed) {
-      newStatus = 0; // Not assigned, not completed
-    } else {
-      const assignDeadline = new Date(disc.getTime() + assignSLA * 60000);
-      const completeDeadline = new Date(disc.getTime() + completeSLA * 60000);
+    let slaStatus = 0;
 
-      const assignExceeded = assigned && assigned > assignDeadline;
+    const assignExceeded = assigned && assigned > assignDeadline;
+    const completeExceeded = completed > completeDeadline;
 
-      if (!completed) {
-        const completeExceeded = assigned && Date.now() > (assigned.getTime() + completeSLA * 60000);
+    if (!assigned) slaStatus = 0;
+    else if (assignExceeded && completeExceeded) slaStatus = 4;
+    else if (assignExceeded) slaStatus = 2;
+    else if (completeExceeded) slaStatus = 3;
+    else slaStatus = 5; // Done in SLA
 
-        if (assignExceeded && completeExceeded) {
-          newStatus = 4;
-        } else if (assignExceeded) {
-          newStatus = 2;
-        } else if (completeExceeded) {
-          newStatus = 3;
-        } else {
-          newStatus = 1;
-        }
-      } else {
-        const completeExceeded = completed > completeDeadline;
-
-        if (assignExceeded && completeExceeded) {
-          newStatus = 4;
-        } else if (assignExceeded) {
-          newStatus = 2;
-        } else if (completeExceeded) {
-          newStatus = 3;
-        } else {
-          newStatus = 5; // ✅ Completed within SLA
-        }
-      }
-    }
-
-    // Step 2: Update the record with SLA status, status, ticket close
+    // Step 2: Close ticket
     const update = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
+      .input('DEPT', sql.NVarChar(100), DEPT)
+      .input('FTID', sql.Int, FTID)
       .input('USERID', sql.NVarChar(100), USERID)
-      .input('TKT_STATUS', sql.Int, 1) // ✅ Closed
-      .input('STATUS', sql.Int, newStatus) // ✅ SLA logic status
-      .input('SLA_STATUS', sql.Int, newStatus) // ✅ Optional separate field
+      .input('STATUS', sql.Int, slaStatus)
+      .input('TKT_STATUS', sql.Int, 1)
       .query(`
         UPDATE FACILITY_CHECK_DETAILS
         SET 
           COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
           USERID = @USERID,
-          TKT_STATUS = @TKT_STATUS,
-          STATUS =  @SLA_STATUS
-        WHERE FACILITY_CKD_ROOMNO = @ROOMNO AND TKT_STATUS != 1
+          STATUS = @STATUS,
+          TKT_STATUS = @TKT_STATUS
+        WHERE FACILITY_CKD_ROOMNO = @ROOMNO 
+          AND FACILITY_CKD_DEPT = @DEPT
+          AND FTID = @FTID
+          AND TKT_STATUS != 1
       `);
-
-    if (update.rowsAffected[0] === 0) {
-      return res.status(400).json({ message: 'Ticket already closed or not found.' });
-    }
 
     return res.json({
       success: true,
-      message: 'Ticket closed successfully.',
-      status: newStatus
+      message: 'Ticket closed successfully',
+      slaStatus
     });
 
   } catch (err) {
-    console.error('❌ Close Ticket Error:', err);
+    console.error('Close Ticket Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
