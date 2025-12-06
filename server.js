@@ -194,20 +194,20 @@ app.post('/login', async (req, res) => {
 app.post('/close-ticket', async (req, res) => {
   let { ROOMNO, USERID, DEPT, FTID } = req.body;
 
-  // Trim input values
+  // Trim values
   ROOMNO = ROOMNO?.toString().trim();
   USERID = USERID?.toString().trim();
   DEPT = DEPT?.toString().trim();
   FTID = FTID?.toString().trim();
 
-  if (!ROOMNO || !USERID || !DEPT || !FTID) {
-    return res.status(400).json({ error: 'ROOMNO, DEPT, USERID and FTID are required' });
+  if (!ROOMNO || !DEPT || !FTID) {
+    return res.status(400).json({ error: 'ROOMNO, DEPT and FTID are required' });
   }
 
   try {
     const pool = await sql.connect(dbConfig);
 
-    // Step 1: Fetch SLA values + timestamps
+    // Step 1: Fetch ticket info
     const result = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
@@ -216,6 +216,7 @@ app.post('/close-ticket', async (req, res) => {
         SELECT 
           F.DISC_RECOM_TIME, 
           F.ASSIGNED_TIME,
+          F.USERID AS ASSIGNED_USERID,
           F.COMPLETED_TIME,
           D.AssignSLA_Min,
           D.CompletionSLA_Min
@@ -232,31 +233,42 @@ app.post('/close-ticket', async (req, res) => {
       return res.status(404).json({ message: 'Ticket not found or already closed.' });
     }
 
-    // Step 2: SLA calculations
     const row = result.recordset[0];
-    const disc = new Date(row.DISC_RECOM_TIME);
+
+    // ✅ Validation: Ticket must be assigned
+    if (!row.ASSIGNED_TIME || !row.ASSIGNED_USERID || row.ASSIGNED_USERID === 0) {
+      return res.status(400).json({
+        error: 'Please assign the ticket before closing it.'
+      });
+    }
+
+    const disc = row.DISC_RECOM_TIME ? new Date(row.DISC_RECOM_TIME) : new Date();
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
-    const completed = new Date(); // current time
+    const completed = new Date(); // now
 
-    const assignDeadline = new Date(disc.getTime() + row.AssignSLA_Min * 60000);
-    const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
+    const assignDeadline = new Date(disc.getTime() + (row.AssignSLA_Min || 0) * 60000);
+    const completeDeadline = new Date(disc.getTime() + (row.CompletionSLA_Min || 0) * 60000);
 
+    // SLA status
     let slaStatus = 0;
     const assignExceeded = assigned && assigned > assignDeadline;
     const completeExceeded = completed > completeDeadline;
 
-    if (!assigned) slaStatus = 0;
-    else if (assignExceeded && completeExceeded) slaStatus = 4;
-    else if (assignExceeded) slaStatus = 2;
-    else if (completeExceeded) slaStatus = 3;
-    else slaStatus = 5; // SLA success
+    if (assigned) {
+      if (assignExceeded && completeExceeded) slaStatus = 4;
+      else if (assignExceeded) slaStatus = 2;
+      else if (completeExceeded) slaStatus = 3;
+      else slaStatus = 5; // SLA success
+    }
 
-    // Step 3: Close the ticket
+    const safeUserID = USERID || row.ASSIGNED_USERID;
+
+    // Close ticket
     await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
       .input('FTID', sql.NVarChar(100), FTID)
-      .input('USERID', sql.NVarChar(100), USERID)
+      .input('USERID', sql.NVarChar(100), safeUserID)
       .input('STATUS', sql.Int, slaStatus)
       .input('TKT_STATUS', sql.Int, 2)
       .query(`
@@ -272,26 +284,25 @@ app.post('/close-ticket', async (req, res) => {
           AND TKT_STATUS != 2
       `);
 
-    // Step 4: Dynamic BED_DETAILS column update
+    // BED_DETAILS update
     const allowedDeptColumns = {
       "IT": "IT",
       "ELECTRICAL": "ELECTRICAL",
       "BIOMEDICAL": "BIOMEDICAL",
       "MAINTANANCE": "MAINTANANCE",
-      "HOUSEKEEPING": "[STATUS]"  // Use brackets for reserved keyword
+      "HOUSEKEEPING": "STATUS"
     };
 
     const deptColumn = allowedDeptColumns[DEPT.toUpperCase()];
     if (!deptColumn) {
-      return res.status(400).json({ error: `Invalid department '${DEPT}' for BED_DETAILS update` });
+      return res.status(400).json({ error: `Invalid department '${DEPT}'. Cannot update BED_DETAILS.` });
     }
 
-    // Housekeeping sets STATUS = 0, others set respective column = 1
-    const updateValue = (DEPT.toUpperCase() === "HOUSEKEEPING") ? 0 : 1;
+    const updateValue = DEPT.toUpperCase() === 'HOUSEKEEPING' ? 0 : 1;
 
     const updateBedQuery = `
       UPDATE BED_DETAILS
-      SET ${deptColumn} = @Value
+      SET ${deptColumn} = @VALUE
       WHERE LTRIM(RTRIM(ROOMNO)) = @ROOMNO
         AND LTRIM(RTRIM(FTID)) = @FTID
     `;
@@ -299,10 +310,9 @@ app.post('/close-ticket', async (req, res) => {
     await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('FTID', sql.NVarChar(100), FTID)
-      .input('Value', sql.Int, updateValue)
+      .input('VALUE', sql.Int, updateValue)
       .query(updateBedQuery);
 
-    // Step 5: Send response
     return res.json({
       success: true,
       message: 'Ticket closed successfully',
@@ -311,7 +321,7 @@ app.post('/close-ticket', async (req, res) => {
 
   } catch (err) {
     console.error('Close Ticket Error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
