@@ -217,7 +217,7 @@ app.post('/close-ticket', async (req, res) => {
             ON F.FACILITY_CKD_DEPT = D.DEPTName
         WHERE F.FACILITY_CKD_ROOMNO = @ROOMNO
           AND F.FACILITY_CKD_DEPT = @DEPT
-          AND F.FTID = @FTID
+          AND F.FACILITY_TID = @FTID
           AND F.TKT_STATUS != 1
       `);
 
@@ -261,7 +261,7 @@ app.post('/close-ticket', async (req, res) => {
           TKT_STATUS = @TKT_STATUS
         WHERE FACILITY_CKD_ROOMNO = @ROOMNO 
           AND FACILITY_CKD_DEPT = @DEPT
-          AND FTID = @FTID
+          AND FACILITY_TID = @FTID
           AND TKT_STATUS != 1
       `);
 
