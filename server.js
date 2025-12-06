@@ -205,7 +205,7 @@ app.post('/close-ticket', async (req, res) => {
     const result = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
-      .input('FTID', sql.Int, FTID)
+      .input('FTID', sql.NVarChar(100), FTID)
       .query(`
         SELECT 
           F.DISC_RECOM_TIME, 
