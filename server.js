@@ -192,16 +192,23 @@ app.post('/login', async (req, res) => {
 
 
 app.post('/close-ticket', async (req, res) => {
-  const { ROOMNO, USERID, DEPT, FTID } = req.body;
+  let { ROOMNO, USERID, DEPT, FTID } = req.body;
 
+  // Trim strings to avoid whitespace issues
+  ROOMNO = ROOMNO?.toString().trim();
+  USERID = USERID?.toString().trim();
+  DEPT = DEPT?.toString().trim();
+  FTID = FTID?.toString().trim();
+
+  // Validate required fields
   if (!ROOMNO || !USERID || !DEPT || !FTID) {
-    return res.status(400).json({ error: 'ROOMNO, DEPT, USERID and FTID are required' });
+    return res.status(400).json({ error: 'ROOMNO, DEPT, USERID, and FTID are required' });
   }
 
   try {
     const pool = await sql.connect(dbConfig);
 
-    // Step 1: Fetch dates + SLA
+    // Step 1: Fetch ticket details
     const result = await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
@@ -214,10 +221,10 @@ app.post('/close-ticket', async (req, res) => {
           D.CompletionSLA_Min
         FROM FACILITY_CHECK_DETAILS F
         JOIN Facility_Dept_Master D 
-            ON F.FACILITY_CKD_DEPT = D.DEPTName
-        WHERE F.FACILITY_CKD_ROOMNO = @ROOMNO
-          AND F.FACILITY_CKD_DEPT = @DEPT
-          AND F.FACILITY_TID = @FTID
+            ON LTRIM(RTRIM(F.FACILITY_CKD_DEPT)) = LTRIM(RTRIM(D.DEPTName))
+        WHERE LTRIM(RTRIM(F.FACILITY_CKD_ROOMNO)) = @ROOMNO
+          AND LTRIM(RTRIM(F.FACILITY_CKD_DEPT)) = @DEPT
+          AND LTRIM(RTRIM(F.FACILITY_TID)) = @FTID
           AND F.TKT_STATUS != 1
       `);
 
@@ -228,13 +235,13 @@ app.post('/close-ticket', async (req, res) => {
     const row = result.recordset[0];
     const disc = new Date(row.DISC_RECOM_TIME);
     const assigned = row.ASSIGNED_TIME ? new Date(row.ASSIGNED_TIME) : null;
-    const completed = new Date(); // now
+    const completed = new Date();
 
+    // SLA calculation
     const assignDeadline = new Date(disc.getTime() + row.AssignSLA_Min * 60000);
     const completeDeadline = new Date(disc.getTime() + row.CompletionSLA_Min * 60000);
 
     let slaStatus = 0;
-
     const assignExceeded = assigned && assigned > assignDeadline;
     const completeExceeded = completed > completeDeadline;
 
@@ -245,7 +252,7 @@ app.post('/close-ticket', async (req, res) => {
     else slaStatus = 5; // Done in SLA
 
     // Step 2: Close ticket
-    const update = await pool.request()
+    await pool.request()
       .input('ROOMNO', sql.NVarChar(100), ROOMNO)
       .input('DEPT', sql.NVarChar(100), DEPT)
       .input('FTID', sql.NVarChar(100), FTID)
@@ -259,9 +266,9 @@ app.post('/close-ticket', async (req, res) => {
           USERID = @USERID,
           STATUS = @STATUS,
           TKT_STATUS = @TKT_STATUS
-        WHERE FACILITY_CKD_ROOMNO = @ROOMNO 
-          AND FACILITY_CKD_DEPT = @DEPT
-          AND FACILITY_TID = @FTID
+        WHERE LTRIM(RTRIM(FACILITY_CKD_ROOMNO)) = @ROOMNO 
+          AND LTRIM(RTRIM(FACILITY_CKD_DEPT)) = @DEPT
+          AND LTRIM(RTRIM(FACILITY_TID)) = @FTID
           AND TKT_STATUS != 1
       `);
 
@@ -276,6 +283,7 @@ app.post('/close-ticket', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
