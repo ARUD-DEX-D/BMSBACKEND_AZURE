@@ -332,18 +332,29 @@ app.post('/close-ticket', async (req, res) => {
 
 
 
-app.post('/assign', async (req, res) => {
-  const { userid, status, roomNo, department, forceReassign } = req.body;
+App.post('/assign', async (req, res) => {
+  const {
+    userid,
+    roomNo,
+    department,
+    facilityTid,
+    forceReassign
+  } = req.body;
 
   try {
     const pool = await sql.connect(dbConfig);
 
+    // 🔍 Check current assignment
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
+      .input('facilityTid', sql.NVarChar, facilityTid)
       .query(`
-        SELECT STATUS, userid FROM FACILITY_CHECK_DETAILS
-        WHERE FACILITY_CKD_ROOMNO = @roomNo AND FACILITY_CKD_DEPT = @department
+        SELECT STATUS, userid
+        FROM FACILITY_CHECK_DETAILS
+        WHERE FACILITY_CKD_ROOMNO = @roomNo
+          AND FACILITY_CKD_DEPT = @department
+          AND FACILITY_TID = @facilityTid
       `);
 
     if (result.recordset.length === 0) {
@@ -352,49 +363,66 @@ app.post('/assign', async (req, res) => {
 
     const current = result.recordset[0];
 
+    // ✅ First-time assign
     if (current.STATUS === 0 || current.STATUS === null) {
-      // ✅ First-time assign
+
       await pool.request()
         .input('userid', sql.NVarChar, userid)
         .input('roomNo', sql.NVarChar, roomNo)
         .input('department', sql.NVarChar, department)
+        .input('facilityTid', sql.NVarChar, facilityTid)
         .query(`
           UPDATE FACILITY_CHECK_DETAILS
-          SET 
+          SET
             ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
             STATUS = 1,
             userid = @userid
-          WHERE FACILITY_CKD_ROOMNO = @roomNo AND FACILITY_CKD_DEPT = @department
+          WHERE FACILITY_CKD_ROOMNO = @roomNo
+            AND FACILITY_CKD_DEPT = @department
+            AND FACILITY_TID = @facilityTid
         `);
 
-      return res.send({ success: true, message: 'Assigned successfully.' });
+      return res.send({
+        success: true,
+        message: 'Assigned successfully.'
+      });
+    }
 
-    } else if (current.STATUS === 1 && !forceReassign) {
-      // ⚠️ Already assigned - prompt reassign
-     return res.send({
-  alreadyAssigned: true,
-  currentUser: (current.userid ?? '').toString().trim(),
-  message: `Already assigned to ${(current.userid ?? '').toString().trim()}. Do you want to reassign?`
-});
+    // ⚠️ Already assigned → Ask for reassign
+    if (current.STATUS === 1 && !forceReassign) {
+      return res.send({
+        alreadyAssigned: true,
+        currentUser: (current.userid ?? '').toString().trim(),
+        message: `Already assigned to ${(current.userid ?? '').toString().trim()}. Do you want to reassign?`
+      });
+    }
 
+    // 🔁 Reassign
+    if (current.STATUS === 1 && forceReassign) {
 
-    } else if (current.STATUS === 1 && forceReassign) {
-      // ✅ Reassign (update only userid)
       await pool.request()
         .input('userid', sql.NVarChar, userid)
         .input('roomNo', sql.NVarChar, roomNo)
         .input('department', sql.NVarChar, department)
+        .input('facilityTid', sql.NVarChar, facilityTid)
         .query(`
           UPDATE FACILITY_CHECK_DETAILS
           SET userid = @userid
-          WHERE FACILITY_CKD_ROOMNO = @roomNo AND FACILITY_CKD_DEPT = @department
+          WHERE FACILITY_CKD_ROOMNO = @roomNo
+            AND FACILITY_CKD_DEPT = @department
+            AND FACILITY_TID = @facilityTid
         `);
 
-      return res.send({ success: true, message: 'User reassigned.' });
-
-    } else {
-      return res.status(400).send({ error: 'Cannot assign. Task already completed or SLA breached.' });
+      return res.send({
+        success: true,
+        message: 'User reassigned successfully.'
+      });
     }
+
+    // ❌ Invalid state
+    return res.status(400).send({
+      error: 'Cannot assign. Task already completed or SLA breached.'
+    });
 
   } catch (err) {
     res.status(500).send({ error: err.message });
