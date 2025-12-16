@@ -332,7 +332,7 @@ app.post('/close-ticket', async (req, res) => {
 
 
 
-App.post('/assign', async (req, res) => {
+app.post('/assign', async (req, res) => {
   const {
     userid,
     roomNo,
