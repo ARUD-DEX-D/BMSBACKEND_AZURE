@@ -344,7 +344,7 @@ app.post('/assign', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // 🔍 Fetch current assignment + ticket status
+    // Fetch current assignment + ticket status
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
@@ -363,7 +363,7 @@ app.post('/assign', async (req, res) => {
 
     const current = result.recordset[0];
 
-    // 🔄 Normalize values
+    // Normalize values
     const assignStatus = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
     const currentUserId = (current.userid ?? '').toString().trim();
@@ -374,9 +374,7 @@ app.post('/assign', async (req, res) => {
       forceReassign === 1 ||
       forceReassign === '1';
 
-    /* ---------------------------------------------------
-       🚫 CLOSED TICKET – HARD STOP
-    --------------------------------------------------- */
+    // 1️⃣ Block closed tickets
     if (ticketStatus === 2) {
       return res.status(403).send({
         closed: true,
@@ -384,9 +382,7 @@ app.post('/assign', async (req, res) => {
       });
     }
 
-    /* ---------------------------------------------------
-       1️⃣ FIRST-TIME ASSIGN
-    --------------------------------------------------- */
+    // 2️⃣ First-time assign
     if (assignStatus === 0 || current.STATUS === null) {
       await pool.request()
         .input('userid', sql.NVarChar, newUserId)
@@ -404,15 +400,10 @@ app.post('/assign', async (req, res) => {
             AND FACILITY_TID = @facilityTid
         `);
 
-      return res.send({
-        success: true,
-        message: 'Assigned successfully.'
-      });
+      return res.send({ success: true, message: 'Assigned successfully.' });
     }
 
-    /* ---------------------------------------------------
-       2️⃣ SAME USER
-    --------------------------------------------------- */
+    // 3️⃣ Check if same user
     if (currentUserId === newUserId) {
       return res.send({
         success: true,
@@ -421,9 +412,7 @@ app.post('/assign', async (req, res) => {
       });
     }
 
-    /* ---------------------------------------------------
-       3️⃣ DIFFERENT USER – ASK CONFIRMATION
-    --------------------------------------------------- */
+    // 4️⃣ DIFFERENT user → ask reassign if force is false
     if (!forceReassignBool) {
       return res.send({
         alreadyAssigned: true,
@@ -432,9 +421,7 @@ app.post('/assign', async (req, res) => {
       });
     }
 
-    /* ---------------------------------------------------
-       4️⃣ FORCE REASSIGN
-    --------------------------------------------------- */
+    // 5️⃣ DIFFERENT user → force reassign
     await pool.request()
       .input('userid', sql.NVarChar, newUserId)
       .input('roomNo', sql.NVarChar, roomNo)
@@ -450,10 +437,7 @@ app.post('/assign', async (req, res) => {
           AND FACILITY_TID = @facilityTid
       `);
 
-    return res.send({
-      success: true,
-      message: 'User reassigned successfully.'
-    });
+    return res.send({ success: true, message: 'User reassigned successfully.' });
 
   } catch (err) {
     console.error(err);
