@@ -344,13 +344,13 @@ app.post('/assign', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // 🔍 Fetch current assignment
+    // 🔍 Fetch current assignment + ticket status
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
       .input('facilityTid', sql.NVarChar, facilityTid)
       .query(`
-        SELECT STATUS, userid
+        SELECT STATUS, userid, TKT_STATUS
         FROM FACILITY_CHECK_DETAILS
         WHERE FACILITY_CKD_ROOMNO = @roomNo
           AND FACILITY_CKD_DEPT = @department
@@ -364,7 +364,8 @@ app.post('/assign', async (req, res) => {
     const current = result.recordset[0];
 
     // 🔄 Normalize values
-    const status = Number(current.STATUS);
+    const assignStatus = Number(current.STATUS);
+    const ticketStatus = Number(current.TKT_STATUS);
     const currentUserId = (current.userid ?? '').toString().trim();
     const newUserId = (userid ?? '').toString().trim();
     const forceReassignBool =
@@ -374,9 +375,19 @@ app.post('/assign', async (req, res) => {
       forceReassign === '1';
 
     /* ---------------------------------------------------
-       1️⃣ FIRST-TIME ASSIGN (only when unassigned)
+       🚫 CLOSED TICKET – HARD STOP
     --------------------------------------------------- */
-    if (status === 0 || current.STATUS === null) {
+    if (ticketStatus === 2) {
+      return res.status(403).send({
+        closed: true,
+        error: 'Ticket is closed. Assignment or edit is not allowed.'
+      });
+    }
+
+    /* ---------------------------------------------------
+       1️⃣ FIRST-TIME ASSIGN
+    --------------------------------------------------- */
+    if (assignStatus === 0 || current.STATUS === null) {
       await pool.request()
         .input('userid', sql.NVarChar, newUserId)
         .input('roomNo', sql.NVarChar, roomNo)
@@ -400,7 +411,7 @@ app.post('/assign', async (req, res) => {
     }
 
     /* ---------------------------------------------------
-       2️⃣ SAME USER (ticket already belongs to requester)
+       2️⃣ SAME USER
     --------------------------------------------------- */
     if (currentUserId === newUserId) {
       return res.send({
@@ -422,8 +433,7 @@ app.post('/assign', async (req, res) => {
     }
 
     /* ---------------------------------------------------
-       4️⃣ DIFFERENT USER – FORCE REASSIGN
-       (STATUS INDEPENDENT)
+       4️⃣ FORCE REASSIGN
     --------------------------------------------------- */
     await pool.request()
       .input('userid', sql.NVarChar, newUserId)
