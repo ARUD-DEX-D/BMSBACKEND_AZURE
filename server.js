@@ -344,7 +344,7 @@ app.post('/assign', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // 🔍 Get current assignment
+    // 🔍 Fetch current assignment
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
@@ -373,7 +373,9 @@ app.post('/assign', async (req, res) => {
       forceReassign === 1 ||
       forceReassign === '1';
 
-    // ✅ First-time assign ONLY
+    /* ---------------------------------------------------
+       1️⃣ FIRST-TIME ASSIGN (only when unassigned)
+    --------------------------------------------------- */
     if (status === 0 || current.STATUS === null) {
       await pool.request()
         .input('userid', sql.NVarChar, newUserId)
@@ -397,15 +399,20 @@ app.post('/assign', async (req, res) => {
       });
     }
 
-    // 👤 Same user already assigned
-    if (currentUserId === newUserId && !forceReassignBool) {
+    /* ---------------------------------------------------
+       2️⃣ SAME USER (ticket already belongs to requester)
+    --------------------------------------------------- */
+    if (currentUserId === newUserId) {
       return res.send({
         success: true,
+        assignedToSelf: true,
         message: 'Already assigned to you.'
       });
     }
 
-    // ⚠️ Assigned → ask permission to reassign
+    /* ---------------------------------------------------
+       3️⃣ DIFFERENT USER – ASK CONFIRMATION
+    --------------------------------------------------- */
     if (!forceReassignBool) {
       return res.send({
         alreadyAssigned: true,
@@ -414,7 +421,10 @@ app.post('/assign', async (req, res) => {
       });
     }
 
-    // 🔁 REASSIGN (STATUS INDEPENDENT)
+    /* ---------------------------------------------------
+       4️⃣ DIFFERENT USER – FORCE REASSIGN
+       (STATUS INDEPENDENT)
+    --------------------------------------------------- */
     await pool.request()
       .input('userid', sql.NVarChar, newUserId)
       .input('roomNo', sql.NVarChar, roomNo)
