@@ -344,7 +344,7 @@ app.post('/assign', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // 🔍 Check current assignment
+    // 🔍 Get current assignment
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
@@ -363,11 +363,20 @@ app.post('/assign', async (req, res) => {
 
     const current = result.recordset[0];
 
-    // ✅ First-time assign
-    if (current.STATUS === 0 || current.STATUS === null) {
+    // 🔄 Normalize values
+    const status = Number(current.STATUS);
+    const currentUserId = (current.userid ?? '').toString().trim();
+    const newUserId = (userid ?? '').toString().trim();
+    const forceReassignBool =
+      forceReassign === true ||
+      forceReassign === 'true' ||
+      forceReassign === 1 ||
+      forceReassign === '1';
 
+    // ✅ First-time assign ONLY
+    if (status === 0 || current.STATUS === null) {
       await pool.request()
-        .input('userid', sql.NVarChar, userid)
+        .input('userid', sql.NVarChar, newUserId)
         .input('roomNo', sql.NVarChar, roomNo)
         .input('department', sql.NVarChar, department)
         .input('facilityTid', sql.NVarChar, facilityTid)
@@ -388,43 +397,46 @@ app.post('/assign', async (req, res) => {
       });
     }
 
-    // ⚠️ Already assigned → Ask for reassign
-    if (current.STATUS === 1 && !forceReassign) {
-      return res.send({
-        alreadyAssigned: true,
-        currentUser: (current.userid ?? '').toString().trim(),
-        message: `Already assigned to ${(current.userid ?? '').toString().trim()}. Do you want to reassign?`
-      });
-    }
-
-    // 🔁 Reassign
-    if (current.STATUS === 1 && forceReassign) {
-
-      await pool.request()
-        .input('userid', sql.NVarChar, userid)
-        .input('roomNo', sql.NVarChar, roomNo)
-        .input('department', sql.NVarChar, department)
-        .input('facilityTid', sql.NVarChar, facilityTid)
-        .query(`
-          UPDATE FACILITY_CHECK_DETAILS
-          SET userid = @userid
-          WHERE FACILITY_CKD_ROOMNO = @roomNo
-            AND FACILITY_CKD_DEPT = @department
-            AND FACILITY_TID = @facilityTid
-        `);
-
+    // 👤 Same user already assigned
+    if (currentUserId === newUserId && !forceReassignBool) {
       return res.send({
         success: true,
-        message: 'User reassigned successfully.'
+        message: 'Already assigned to you.'
       });
     }
 
-    // ❌ Invalid state
-    return res.status(400).send({
-      error: 'Cannot assign. Task already completed or SLA breached.'
+    // ⚠️ Assigned → ask permission to reassign
+    if (!forceReassignBool) {
+      return res.send({
+        alreadyAssigned: true,
+        currentUser: currentUserId,
+        message: `Already assigned to ${currentUserId}. Do you want to reassign?`
+      });
+    }
+
+    // 🔁 REASSIGN (STATUS INDEPENDENT)
+    await pool.request()
+      .input('userid', sql.NVarChar, newUserId)
+      .input('roomNo', sql.NVarChar, roomNo)
+      .input('department', sql.NVarChar, department)
+      .input('facilityTid', sql.NVarChar, facilityTid)
+      .query(`
+        UPDATE FACILITY_CHECK_DETAILS
+        SET
+          userid = @userid,
+          ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+        WHERE FACILITY_CKD_ROOMNO = @roomNo
+          AND FACILITY_CKD_DEPT = @department
+          AND FACILITY_TID = @facilityTid
+      `);
+
+    return res.send({
+      success: true,
+      message: 'User reassigned successfully.'
     });
 
   } catch (err) {
+    console.error(err);
     res.status(500).send({ error: err.message });
   }
 });
