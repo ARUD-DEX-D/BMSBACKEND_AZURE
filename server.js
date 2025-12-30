@@ -455,7 +455,7 @@ app.post('/assign_task', async (req, res) => {
     department,
     facilityTid,
     forceReassign,
-    MRNO   // optional (used only for NURSING)
+
   } = req.body;
 
   // 🔴 Validation
