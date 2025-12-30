@@ -448,6 +448,149 @@ app.post('/assign', async (req, res) => {
 
 
 
+app.post('/assign_nurse_ticket', async (req, res) => {
+  const {
+    userid,
+    roomNo,
+    department,
+    facilityTid,
+    forceReassign,
+    MRNO // ✅ REQUIRED for nurse station insert
+  } = req.body;
+
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    // Fetch current assignment + ticket status
+    const result = await pool.request()
+      .input('roomNo', sql.NVarChar, roomNo)
+      .input('department', sql.NVarChar, department)
+      .input('facilityTid', sql.NVarChar, facilityTid)
+      .query(`
+        SELECT STATUS, userid, TKT_STATUS, MRNO
+        FROM FACILITY_CHECK_DETAILS
+        WHERE FACILITY_CKD_ROOMNO = @roomNo
+          AND FACILITY_CKD_DEPT = @department
+          AND FACILITY_TID = @facilityTid
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).send({ error: 'Record not found' });
+    }
+
+    const current = result.recordset[0];
+
+    const assignStatus = Number(current.STATUS);
+    const ticketStatus = Number(current.TKT_STATUS);
+    const currentUserId = (current.userid ?? '').toString().trim();
+    const newUserId = (userid ?? '').toString().trim();
+    const mrno = MRNO || current.MRNO;
+
+    const forceReassignBool =
+      forceReassign === true ||
+      forceReassign === 'true' ||
+      forceReassign === 1 ||
+      forceReassign === '1';
+
+    // 1️⃣ Block closed tickets
+    if (ticketStatus === 2) {
+      return res.status(403).send({
+        closed: true,
+        error: 'Ticket is closed. Assignment not allowed.'
+      });
+    }
+
+    // 2️⃣ FIRST-TIME ASSIGN
+    if (assignStatus === 0 || current.STATUS === null) {
+
+      // 🔹 Update FACILITY_CHECK_DETAILS
+      await pool.request()
+        .input('userid', sql.NVarChar, newUserId)
+        .input('roomNo', sql.NVarChar, roomNo)
+        .input('department', sql.NVarChar, department)
+        .input('facilityTid', sql.NVarChar, facilityTid)
+        .query(`
+          UPDATE FACILITY_CHECK_DETAILS
+          SET
+            ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
+            STATUS = 1,
+            TKT_STATUS = 1,
+            userid = @userid
+          WHERE FACILITY_CKD_ROOMNO = @roomNo
+            AND FACILITY_CKD_DEPT = @department
+            AND FACILITY_TID = @facilityTid
+        `);
+
+      // 🔹 INSERT INTO DT_P1_NURSE_STATION (✅ ONLY FIRST TIME)
+      await pool.request()
+        .input('MRNO', sql.NVarChar, mrno)
+        .input('ROOMNO', sql.NVarChar, roomNo)
+        .input('STATUS', sql.Int, 0)
+        .input('FTID', sql.NVarChar, facilityTid)
+        .query(`
+          IF NOT EXISTS (
+            SELECT 1 FROM DT_P1_NURSE_STATION
+            WHERE RTRIM(LTRIM(MRNO)) = @MRNO
+              AND RTRIM(LTRIM(ROOMNO)) = @ROOMNO
+              AND RTRIM(LTRIM(FTID)) = @FTID
+          )
+          BEGIN
+            INSERT INTO DT_P1_NURSE_STATION (MRNO, ROOMNO, STATUS, FTID)
+            VALUES (@MRNO, @ROOMNO, @STATUS, @FTID)
+          END
+        `);
+
+      return res.send({
+        success: true,
+        message: 'Assigned successfully and nurse station initialized.'
+      });
+    }
+
+    // 3️⃣ Same user
+    if (currentUserId === newUserId) {
+      return res.send({
+        success: true,
+        assignedToSelf: true,
+        message: 'Already assigned to you.'
+      });
+    }
+
+    // 4️⃣ Different user → ask confirmation
+    if (!forceReassignBool) {
+      return res.send({
+        alreadyAssigned: true,
+        currentUser: currentUserId,
+        message: `Already assigned to ${currentUserId}. Reassign?`
+      });
+    }
+
+    // 5️⃣ Force reassign
+    await pool.request()
+      .input('userid', sql.NVarChar, newUserId)
+      .input('roomNo', sql.NVarChar, roomNo)
+      .input('department', sql.NVarChar, department)
+      .input('facilityTid', sql.NVarChar, facilityTid)
+      .query(`
+        UPDATE FACILITY_CHECK_DETAILS
+        SET
+          userid = @userid,
+          ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+        WHERE FACILITY_CKD_ROOMNO = @roomNo
+          AND FACILITY_CKD_DEPT = @department
+          AND FACILITY_TID = @facilityTid
+      `);
+
+    return res.send({
+      success: true,
+      message: 'User reassigned successfully.'
+    });
+
+  } catch (err) {
+    console.error("❌ ASSIGN ERROR:", err);
+    res.status(500).send({ error: err.message });
+  }
+});
+
 
 
 
