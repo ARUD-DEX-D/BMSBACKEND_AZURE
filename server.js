@@ -1352,38 +1352,53 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     `);
             },
 
-            FILE_DISPATCHED: async () => {
-                // Mark summary as dispatched
-                await pool.request()
-                    .input("value", sql.Int, 1)
-                    .input("time", sql.VarChar, formattedTime)
-                    .input("user", sql.VarChar, user)
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
-                        UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET FILE_DISPATCHED = @value,
-                            FILE_DISPATCHED_TIME = @time,
-                            [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
-                    `);
+           FILE_DISPATCHED: async () => {
 
-                // Optionally mark SUMMARY flag in BED_DETAILS
-                await pool.request()
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
-                        UPDATE BED_DETAILS
-                        SET DISCHARGE_SUMMARY = 1
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
-                    `);
-            }
+    // 1️⃣ Mark summary file dispatched
+    await pool.request()
+        .input("value", sql.Int, 1)
+        .input("time", sql.VarChar, formattedTime)
+        .input("user", sql.VarChar, user)
+        .input("roomno", sql.VarChar, ROOMNO)
+        .input("mrno", sql.VarChar, MRNO)
+        .input("ftid", sql.VarChar, FTID)
+        .query(`
+            UPDATE DT_P2_DISCHARGE_SUMMARY
+            SET FILE_DISPATCHED = @value,
+                FILE_DISPATCHED_TIME = @time,
+                [USER] = @user
+            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FTID)) = @ftid
+        `);
+
+    // 2️⃣ Close SUMMARY ticket (✅ REQUIRED)
+    await pool.request()
+        .input("roomno", sql.VarChar, ROOMNO)
+        .input("mrno", sql.VarChar, MRNO)
+        .input("ftid", sql.VarChar, FTID)
+        .query(`
+            UPDATE FACILITY_CHECK_DETAILS
+            SET TKT_STATUS = 2
+            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+              AND FACILITY_CKD_DEPT = 'SUMMARY'
+        `);
+
+    // 3️⃣ Update BED_DETAILS flag
+    await pool.request()
+        .input("roomno", sql.VarChar, ROOMNO)
+        .input("mrno", sql.VarChar, MRNO)
+        .input("ftid", sql.VarChar, FTID)
+        .query(`
+            UPDATE BED_DETAILS
+            SET DISCHARGE_SUMMARY = 1
+            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FTID)) = @ftid
+        `);
+}
 
         };
 
