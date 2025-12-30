@@ -487,7 +487,7 @@ app.post('/assign_task', async (req, res) => {
 
     const current = result.recordset[0];
 
-    const currentUser = (current.userid ?? '').trim();
+    const currentUserid = (current.userid ?? '').trim();
     const newUser = userid.trim();
     const status = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
@@ -555,7 +555,7 @@ app.post('/assign_task', async (req, res) => {
     }
 
     // 4️⃣ Same user
-    if (currentUser === newUser) {
+    if (currentUserid === newUser) {
       return res.json({
         success: true,
         assignedToSelf: true,
@@ -567,8 +567,8 @@ app.post('/assign_task', async (req, res) => {
     if (!force) {
       return res.json({
         alreadyAssigned: true,
-        currentUser,
-        message: `Already assigned to ${currentUser}. Reassign?`
+        currentUserid,
+        message: `Already assigned to ${currentUserid}. Reassign?`
       });
     }
 
