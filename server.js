@@ -491,7 +491,7 @@ app.post('/assign_task', async (req, res) => {
     const newUser = userid.trim();
     const status = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
-    const mrno = MRNO || current.MRNO;
+    
 
     const force =
       forceReassign === true ||
@@ -530,7 +530,7 @@ app.post('/assign_task', async (req, res) => {
       // 🔹 Only NURSING needs Nurse Station insert
       if (department.toUpperCase() === 'NURSING') {
         await pool.request()
-          .input('MRNO', sql.NVarChar, mrno)
+          
           .input('ROOMNO', sql.NVarChar, roomNo)
           .input('STATUS', sql.Int, 0)
           .input('FTID', sql.NVarChar, facilityTid)
