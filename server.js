@@ -669,159 +669,116 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
-  let pool;
-  const transaction = new sql.Transaction();
-
   try {
-    pool = await sql.connect(dbConfig);
-    await transaction.begin();
+    const pool = await sql.connect(dbConfig);
 
-    // 🇮🇳 IST Time
+    // IST Time
     const now = new Date();
     now.setHours(now.getHours() + 5, now.getMinutes() + 30);
     const formattedTime = now.toISOString().replace('T', ' ').split('.')[0];
 
     const stepFunctions = {
 
-      /* ---------------- PHARMACY CLEARANCE ---------------- */
       PHARMACY_CLEARANCE: async () => {
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
           .input("time", formattedTime)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
-            SET PHARMACY_CLEARANCE = 1,
-                PHARMACY_CLEARANCE_TIME = @time,
-                [USER] = @user
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
+            SET PHARMACY_CLEARANCE=1,
+                PHARMACY_CLEARANCE_TIME=@time,
+                [USER]=@user
+            WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+              AND RTRIM(LTRIM(MRNO))=@mrno
+              AND RTRIM(LTRIM(FTID))=@ftid
           `);
       },
 
-      /* ---------------- LAB CLEARANCE ---------------- */
       LAB_CLEARANCE: async () => {
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
           .input("time", formattedTime)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
-            SET LAB_CLEARANCE = 1,
-                LAB_CLEARANCE_TIME = @time,
-                [USER] = @user
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
+            SET LAB_CLEARANCE=1,
+                LAB_CLEARANCE_TIME=@time,
+                [USER]=@user
+            WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+              AND RTRIM(LTRIM(MRNO))=@mrno
+              AND RTRIM(LTRIM(FTID))=@ftid
           `);
       },
 
-      /* ---------------- CONSUMABLE CLEARANCE ---------------- */
       CONSUMABLE_CLEARANCE: async () => {
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
           .input("time", formattedTime)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
-            SET CONSUMABLE_CLEARANCE = 1,
-                CONSUMABLE_CLEARANCE_TIME = @time,
-                [USER] = @user
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
+            SET CONSUMABLE_CLEARANCE=1,
+                CONSUMABLE_CLEARANCE_TIME=@time,
+                [USER]=@user
+            WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+              AND RTRIM(LTRIM(MRNO))=@mrno
+              AND RTRIM(LTRIM(FTID))=@ftid
           `);
       },
 
-      /* ---------------- FILE TRANSFERRED ---------------- */
       FILE_TRANSFERRED: async () => {
-
-        // 1️⃣ SUMMARY → TKT_STATUS = 0
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
+        await pool.request().input("roomno", ROOMNO).input("mrno", MRNO).input("ftid", FTID)
           .query(`
             UPDATE FACILITY_CHECK_DETAILS
             SET TKT_STATUS = 0
-            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND FACILITY_CKD_DEPT = 'SUMMARY'
+            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+              AND RTRIM(LTRIM(MRNO))=@mrno
+              AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+              AND FACILITY_CKD_DEPT='SUMMARY'
           `);
 
-        // 2️⃣ NURSING → TKT_STATUS = 2
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
+        await pool.request().input("roomno", ROOMNO).input("mrno", MRNO).input("ftid", FTID)
           .query(`
             UPDATE FACILITY_CHECK_DETAILS
             SET TKT_STATUS = 2
-            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND FACILITY_CKD_DEPT = 'NURSING'
+            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+              AND RTRIM(LTRIM(MRNO))=@mrno
+              AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+              AND FACILITY_CKD_DEPT='NURSING'
           `);
 
-        // 3️⃣ BED_DETAILS → Nursing done
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
+        await pool.request().input("roomno", ROOMNO).input("mrno", MRNO).input("ftid", FTID)
           .query(`
             UPDATE BED_DETAILS
             SET NURSING = 1
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
-          `);
-
-        // 4️⃣ INSERT → DT_P2_DISCHARGE_SUMMARY
-        await new sql.Request(transaction)
-          .input("roomno", ROOMNO.trim())
-          .input("mrno", MRNO.trim())
-          .input("ftid", FTID.trim())
-          .input("receivedTime", formattedTime)
-          .query(`
-            IF NOT EXISTS (
-              SELECT 1 FROM DT_P2_DISCHARGE_SUMMARY
-              WHERE FTID = @ftid AND MRNO = @mrno AND ROOMNO = @roomno
-            )
-            BEGIN
-              INSERT INTO DT_P2_DISCHARGE_SUMMARY
-                (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-              VALUES
-                (@ftid, @mrno, @roomno, @receivedTime)
-            END
+            WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+              AND RTRIM(LTRIM(MRNO))=@mrno
+              AND RTRIM(LTRIM(FTID))=@ftid
           `);
       }
     };
 
-    /* ---------------- EXECUTE STEPS ---------------- */
+    // 🔥 Execute steps till FILE_TRANSFERRED only
     for (const key of Object.keys(steps)) {
       if (steps[key] && stepFunctions[key]) {
         await stepFunctions[key]();
       }
     }
 
-    await transaction.commit();
     res.json({ message: "Nursing workflow updated successfully" });
 
   } catch (err) {
-    if (transaction) await transaction.rollback();
     console.error("WORKFLOW ERROR:", err);
     res.status(500).json({ message: "Server Error", error: err.message });
   }
 });
-
 
 
 
@@ -1352,7 +1309,7 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     `);
             },
 
-           FILE_DISPATCHED: async () => {
+            FILE_DISPATCHED: async () => {
 
     // 1️⃣ Mark summary file dispatched
     await pool.request()
@@ -1399,6 +1356,7 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(FTID)) = @ftid
         `);
 }
+
 
         };
 
