@@ -487,7 +487,7 @@ app.post('/assign_task', async (req, res) => {
 
     const current = result.recordset[0];
 
-    const currentUserid = (current.userid ?? '').trim();
+    const currentUserid = (current.userid ?? '').toString().trim();
     const newUser = userid.trim();
     const status = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
