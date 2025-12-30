@@ -394,6 +394,7 @@ app.post('/assign', async (req, res) => {
           SET
             ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
             STATUS = 1,
+            TKT_STATUS=1,
             userid = @userid
           WHERE FACILITY_CKD_ROOMNO = @roomNo
             AND FACILITY_CKD_DEPT = @department
