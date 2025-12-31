@@ -525,12 +525,8 @@ app.post('/assign_task', async (req, res) => {
             userid = @userid,
             STATUS = 1,
             TKT_STATUS = 1,
-            ASSIGNED_TIME = DATEADD(MINUTE, 330, @now),
-            FILE_RECEIVED_TIME = CASE
-              WHEN UPPER(@department) = 'SUMMARY'
-              THEN DATEADD(MINUTE, 330, @now)
-              ELSE FILE_RECEIVED_TIME
-            END
+            ASSIGNED_TIME = DATEADD(MINUTE, 330, @now)
+    
           WHERE FACILITY_CKD_ROOMNO = @roomNo
             AND FACILITY_CKD_DEPT = @department
             AND FACILITY_TID = @facilityTid
