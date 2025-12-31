@@ -454,7 +454,7 @@ app.post('/assign_task', async (req, res) => {
     roomNo,
     department,
     facilityTid,
-    mrno,              // ✅ FROM CARD
+    mrno,              // FROM CARD
     forceReassign,
   } = req.body;
 
@@ -467,6 +467,9 @@ app.post('/assign_task', async (req, res) => {
 
   try {
     const pool = await sql.connect(dbConfig);
+
+    // Use ONE timestamp everywhere
+    const now = new Date();
 
     // 1️⃣ Fetch ticket
     const result = await pool.request()
@@ -509,24 +512,31 @@ app.post('/assign_task', async (req, res) => {
     // 3️⃣ FIRST-TIME ASSIGN
     if (status === 0 || current.STATUS === null) {
 
+      // 🔹 Update FACILITY_CHECK_DETAILS
       await pool.request()
         .input('userid', sql.NVarChar, newUser)
         .input('roomNo', sql.NVarChar, roomNo)
         .input('department', sql.NVarChar, department)
         .input('facilityTid', sql.NVarChar, facilityTid)
+        .input('now', sql.DateTime, now)
         .query(`
           UPDATE FACILITY_CHECK_DETAILS
           SET
             userid = @userid,
             STATUS = 1,
             TKT_STATUS = 1,
-            ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+            ASSIGNED_TIME = DATEADD(MINUTE, 330, @now),
+            FILE_RECEIVED_TIME = CASE
+              WHEN UPPER(@department) = 'SUMMARY'
+              THEN DATEADD(MINUTE, 330, @now)
+              ELSE FILE_RECEIVED_TIME
+            END
           WHERE FACILITY_CKD_ROOMNO = @roomNo
             AND FACILITY_CKD_DEPT = @department
             AND FACILITY_TID = @facilityTid
         `);
 
-      // 🔹 INSERT USING MRNO FROM CARD
+      // 🔹 NURSING → Nurse Station
       if (department.toUpperCase() === 'NURSING') {
         await pool.request()
           .input('MRNO', sql.NVarChar, mrno)
@@ -543,6 +553,36 @@ app.post('/assign_task', async (req, res) => {
             BEGIN
               INSERT INTO DT_P1_NURSE_STATION (MRNO, ROOMNO, STATUS, FTID)
               VALUES (@MRNO, @ROOMNO, @STATUS, @FTID)
+            END
+          `);
+      }
+
+      // 🔹 SUMMARY → Discharge Summary (WITH FILE_RECEIVED_TIME)
+      if (department.toUpperCase() === 'SUMMARY') {
+        await pool.request()
+          .input('MRNO', sql.NVarChar, mrno)
+          .input('ROOMNO', sql.NVarChar, roomNo)
+          .input('STATUS', sql.Int, 0)
+          .input('FTID', sql.NVarChar, facilityTid)
+          .input('now', sql.DateTime, now)
+          .query(`
+            IF NOT EXISTS (
+              SELECT 1 FROM DT_P2_DISCHARGE_SUMMARY
+              WHERE RTRIM(LTRIM(MRNO)) = RTRIM(LTRIM(@MRNO))
+                AND RTRIM(LTRIM(ROOMNO)) = RTRIM(LTRIM(@ROOMNO))
+                AND RTRIM(LTRIM(FTID)) = RTRIM(LTRIM(@FTID))
+            )
+            BEGIN
+              INSERT INTO DT_P2_DISCHARGE_SUMMARY
+                (MRNO, ROOMNO, STATUS, FTID, FILE_RECEIVED_TIME)
+              VALUES
+                (
+                  @MRNO,
+                  @ROOMNO,
+                  @STATUS,
+                  @FTID,
+                  DATEADD(MINUTE, 330, @now)
+                )
             END
           `);
       }
@@ -571,17 +611,18 @@ app.post('/assign_task', async (req, res) => {
       });
     }
 
-    // 6️⃣ Force reassign
+    // 6️⃣ FORCE REASSIGN
     await pool.request()
       .input('userid', sql.NVarChar, newUser)
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
       .input('facilityTid', sql.NVarChar, facilityTid)
+      .input('now', sql.DateTime, now)
       .query(`
         UPDATE FACILITY_CHECK_DETAILS
         SET
           userid = @userid,
-          ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+          ASSIGNED_TIME = DATEADD(MINUTE, 330, @now)
         WHERE FACILITY_CKD_ROOMNO = @roomNo
           AND FACILITY_CKD_DEPT = @department
           AND FACILITY_TID = @facilityTid
