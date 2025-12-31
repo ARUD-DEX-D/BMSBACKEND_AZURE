@@ -454,14 +454,14 @@ app.post('/assign_task', async (req, res) => {
     roomNo,
     department,
     facilityTid,
+    mrno,              // ✅ FROM CARD
     forceReassign,
-
   } = req.body;
 
   // 🔴 Validation
-  if (!userid || !roomNo || !facilityTid || !department?.trim()) {
+  if (!userid || !roomNo || !facilityTid || !department?.trim() || !mrno) {
     return res.status(400).json({
-      error: "userid, roomNo, department and facilityTid are required"
+      error: "userid, roomNo, department, facilityTid and mrno are required"
     });
   }
 
@@ -474,7 +474,7 @@ app.post('/assign_task', async (req, res) => {
       .input('department', sql.NVarChar, department)
       .input('facilityTid', sql.NVarChar, facilityTid)
       .query(`
-        SELECT STATUS, userid, TKT_STATUS, MRNO
+        SELECT STATUS, userid, TKT_STATUS
         FROM FACILITY_CHECK_DETAILS
         WHERE FACILITY_CKD_ROOMNO = @roomNo
           AND FACILITY_CKD_DEPT = @department
@@ -488,10 +488,9 @@ app.post('/assign_task', async (req, res) => {
     const current = result.recordset[0];
 
     const currentUserid = (current.userid ?? '').toString().trim();
-    const newUser = userid.trim();
+    const newUser = userid.toString().trim();
     const status = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
-    
 
     const force =
       forceReassign === true ||
@@ -527,19 +526,19 @@ app.post('/assign_task', async (req, res) => {
             AND FACILITY_TID = @facilityTid
         `);
 
-      // 🔹 Only NURSING needs Nurse Station insert
+      // 🔹 INSERT USING MRNO FROM CARD
       if (department.toUpperCase() === 'NURSING') {
         await pool.request()
-          
+          .input('MRNO', sql.NVarChar, mrno)
           .input('ROOMNO', sql.NVarChar, roomNo)
           .input('STATUS', sql.Int, 0)
           .input('FTID', sql.NVarChar, facilityTid)
           .query(`
             IF NOT EXISTS (
               SELECT 1 FROM DT_P1_NURSE_STATION
-              WHERE RTRIM(LTRIM(MRNO)) = @MRNO
-                AND RTRIM(LTRIM(ROOMNO)) = @ROOMNO
-                AND RTRIM(LTRIM(FTID)) = @FTID
+              WHERE RTRIM(LTRIM(MRNO)) = RTRIM(LTRIM(@MRNO))
+                AND RTRIM(LTRIM(ROOMNO)) = RTRIM(LTRIM(@ROOMNO))
+                AND RTRIM(LTRIM(FTID)) = RTRIM(LTRIM(@FTID))
             )
             BEGIN
               INSERT INTO DT_P1_NURSE_STATION (MRNO, ROOMNO, STATUS, FTID)
@@ -598,6 +597,7 @@ app.post('/assign_task', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
