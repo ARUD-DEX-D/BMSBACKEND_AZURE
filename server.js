@@ -502,12 +502,14 @@ app.post('/assign_task', async (req, res) => {
       forceReassign === '1';
 
     // 2️⃣ Block closed tickets
-    if (ticketStatus === 2) {
-      return res.status(403).json({
-        closed: true,
-        message: "Ticket is closed. Assignment not allowed."
-      });
-    }
+   if (ticketStatus === 2) {
+  return res.status(200).json({
+    success: false,
+    closed: true,
+    message: "Ticket already closed"
+  });
+}
+
 
     // 3️⃣ FIRST-TIME ASSIGN
     if (status === 0 || current.STATUS === null) {
