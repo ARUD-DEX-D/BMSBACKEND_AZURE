@@ -974,7 +974,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("ftid", FTID)
           .query(`
             UPDATE BED_DETAILS
-            SET STATUS = 0
+            SET STATUS = 3
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FTID)) = @ftid
