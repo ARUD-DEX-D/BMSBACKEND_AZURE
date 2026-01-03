@@ -932,11 +932,11 @@ WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("receivedTime", sql.DateTime, now)
+          .input('now', sql.DateTime, now)
           .query(`
             INSERT INTO DT_P2_DISCHARGE_SUMMARY
             (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-            VALUES (@ftid, @mrno, @roomno, @receivedTime)
+            VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE,330,@now))
           `);
       },
 
