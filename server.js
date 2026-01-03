@@ -458,10 +458,11 @@ app.post('/assign_task', async (req, res) => {
     forceReassign,
   } = req.body;
 
+  // ✅ Required fields check
   if (!userid || !roomNo || !department || !facilityTid || !mrno) {
     return res.json({
       success: false,
-      message: "Required fields missing"
+      message: "Required fields missing",
     });
   }
 
@@ -469,7 +470,7 @@ app.post('/assign_task', async (req, res) => {
     const pool = await sql.connect(dbConfig);
     const now = new Date();
 
-    // 1️⃣ Fetch ticket
+    // 1️⃣ Fetch ticket info
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
@@ -485,30 +486,28 @@ app.post('/assign_task', async (req, res) => {
     if (result.recordset.length === 0) {
       return res.json({
         success: false,
-        message: "Ticket not found"
+        message: "Ticket not found",
       });
     }
 
     const row = result.recordset[0];
-    const status = Number(row.STATUS);
+    const status = Number(row.STATUS);       // 0=open, 1=assigned, 2=closed
     const tktStatus = Number(row.TKT_STATUS);
     const currentUser = (row.userid ?? '').trim();
     const newUser = userid.toString().trim();
-
     const isClosed = status === 2 || tktStatus === 2;
 
-    // 2️⃣ CLOSED
+    // 2️⃣ Closed ticket → cannot assign
     if (isClosed) {
       return res.json({
         success: false,
         closed: true,
-        message: "Ticket already closed"
+        message: "Ticket already closed",
       });
     }
 
-    // 3️⃣ FIRST ASSIGN
+    // 3️⃣ First-time assignment
     if (status === 0 || row.STATUS === null) {
-
       await pool.request()
         .input('userid', sql.NVarChar, newUser)
         .input('roomNo', sql.NVarChar, roomNo)
@@ -526,6 +525,7 @@ app.post('/assign_task', async (req, res) => {
             AND FACILITY_TID=@facilityTid
         `);
 
+      // 3a️⃣ Nursing department → update nurse station table if needed
       if (department.toUpperCase() === 'NURSING') {
         await pool.request()
           .input('MRNO', sql.NVarChar, mrno)
@@ -543,30 +543,30 @@ app.post('/assign_task', async (req, res) => {
 
       return res.json({
         success: true,
-        message: "Task assigned successfully"
+        message: "Task assigned successfully",
       });
     }
 
-    // 4️⃣ SAME USER
+    // 4️⃣ Already assigned to the same user
     if (currentUser === newUser) {
       return res.json({
         success: true,
         assignedToSelf: true,
-        message: "Already assigned to you"
+        message: "Already assigned to you",
       });
     }
 
-    // 5️⃣ ALREADY ASSIGNED → ASK
+    // 5️⃣ Already assigned to another user → confirm reassign
     if (!forceReassign) {
       return res.json({
         success: false,
         alreadyAssigned: true,
         currentUser,
-        message: `Already assigned to ${currentUser}. Reassign?`
+        message: `Already assigned to ${currentUser}. Reassign?`,
       });
     }
 
-    // 6️⃣ FORCE REASSIGN
+    // 6️⃣ Force reassign to a new user
     await pool.request()
       .input('userid', sql.NVarChar, newUser)
       .input('roomNo', sql.NVarChar, roomNo)
@@ -584,14 +584,14 @@ app.post('/assign_task', async (req, res) => {
 
     return res.json({
       success: true,
-      message: "User reassigned successfully"
+      message: "User reassigned successfully",
     });
 
   } catch (err) {
     console.error("ASSIGN ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: err.message
+      error: err.message,
     });
   }
 });
