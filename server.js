@@ -598,6 +598,133 @@ app.post('/assign_task', async (req, res) => {
 });
 
 
+app.post('/assign_process', async (req, res) => {
+  const { userid, roomNo, department, facilityTid, mrno, forceReassign } = req.body;
+
+  // ✅ Required fields
+  if (!userid || !roomNo || !department || !facilityTid) {
+    return res.status(400).json({ success: false, message: 'Required fields missing' });
+  }
+
+  try {
+    const pool = await sql.connect(dbConfig);
+    const now = new Date();
+
+    // 1️⃣ Fetch current assignment + ticket status
+    const result = await pool.request()
+      .input('roomNo', sql.NVarChar, roomNo)
+      .input('department', sql.NVarChar, department)
+      .input('facilityTid', sql.NVarChar, facilityTid)
+      .query(`
+        SELECT STATUS, TKT_STATUS, userid
+        FROM FACILITY_CHECK_DETAILS
+        WHERE FACILITY_CKD_ROOMNO = @roomNo
+          AND FACILITY_CKD_DEPT = @department
+          AND FACILITY_TID = @facilityTid
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+
+    const current = result.recordset[0];
+    const status = Number(current.STATUS);       // 0=open, 1=assigned, 2=closed
+    const ticketStatus = Number(current.TKT_STATUS);
+    const currentUserId = (current.userid ?? '').trim();
+    const newUserId = userid.toString().trim();
+    const forceReassignBool =
+      forceReassign === true || forceReassign === 'true' || forceReassign === 1 || forceReassign === '1';
+
+    // 2️⃣ Block closed tickets
+    if (ticketStatus === 2 || status === 2) {
+      return res.status(403).json({
+        success: false,
+        closed: true,
+        message: 'Ticket is closed. Assignment or edit is not allowed.'
+      });
+    }
+
+    // 3️⃣ First-time assignment
+    if (status === 0 || current.STATUS === null) {
+      // Update ticket
+      await pool.request()
+        .input('userid', sql.NVarChar, newUserId)
+        .input('roomNo', sql.NVarChar, roomNo)
+        .input('department', sql.NVarChar, department)
+        .input('facilityTid', sql.NVarChar, facilityTid)
+        .input('now', sql.DateTime, now)
+        .query(`
+          UPDATE FACILITY_CHECK_DETAILS
+          SET userid=@userid,
+              STATUS=1,
+              TKT_STATUS=1,
+              ASSIGNED_TIME = DATEADD(MINUTE,330,@now)
+          WHERE FACILITY_CKD_ROOMNO=@roomNo
+            AND FACILITY_CKD_DEPT=@department
+            AND FACILITY_TID=@facilityTid
+        `);
+
+      // 3a️⃣ Nursing department → insert into nurse station if not exists
+      if (department.toUpperCase() === 'NURSING' && mrno) {
+        await pool.request()
+          .input('MRNO', sql.NVarChar, mrno)
+          .input('ROOMNO', sql.NVarChar, roomNo)
+          .input('FTID', sql.NVarChar, facilityTid)
+          .query(`
+            IF NOT EXISTS (
+              SELECT 1 FROM DT_P1_NURSE_STATION
+              WHERE MRNO=@MRNO AND ROOMNO=@ROOMNO AND FTID=@FTID
+            )
+            INSERT INTO DT_P1_NURSE_STATION (MRNO, ROOMNO, STATUS, FTID)
+            VALUES (@MRNO,@ROOMNO,0,@FTID)
+          `);
+      }
+
+      return res.json({ success: true, message: 'Task assigned successfully' });
+    }
+
+    // 4️⃣ Already assigned to same user
+    if (currentUserId === newUserId) {
+      return res.json({
+        success: true,
+        assignedToSelf: true,
+        message: 'Already assigned to you.'
+      });
+    }
+
+    // 5️⃣ Already assigned to another user → ask for reassign if forceReassign=false
+    if (!forceReassignBool) {
+      return res.json({
+        success: false,
+        alreadyAssigned: true,
+        currentUser: currentUserId,
+        message: `Already assigned to ${currentUserId}. Do you want to reassign?`
+      });
+    }
+
+    // 6️⃣ Force reassign
+    await pool.request()
+      .input('userid', sql.NVarChar, newUserId)
+      .input('roomNo', sql.NVarChar, roomNo)
+      .input('department', sql.NVarChar, department)
+      .input('facilityTid', sql.NVarChar, facilityTid)
+      .input('now', sql.DateTime, now)
+      .query(`
+        UPDATE FACILITY_CHECK_DETAILS
+        SET userid=@userid,
+            ASSIGNED_TIME = DATEADD(MINUTE,330,@now)
+        WHERE FACILITY_CKD_ROOMNO=@roomNo
+          AND FACILITY_CKD_DEPT=@department
+          AND FACILITY_TID=@facilityTid
+      `);
+
+    return res.json({ success: true, message: 'User reassigned successfully.' });
+
+  } catch (err) {
+    console.error('ASSIGN ERROR:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 
