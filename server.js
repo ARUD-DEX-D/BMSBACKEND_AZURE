@@ -383,25 +383,25 @@ app.post('/assign', async (req, res) => {
     }
 
     // 2️⃣ First-time assign
-    if (assignStatus === 0 || current.STATUS === null) {
+    if (status === 0 || row.STATUS === null) {
       await pool.request()
-        .input('userid', sql.NVarChar, newUserId)
+        .input('userid', sql.NVarChar, newUser)
         .input('roomNo', sql.NVarChar, roomNo)
         .input('department', sql.NVarChar, department)
         .input('facilityTid', sql.NVarChar, facilityTid)
+        .input('now', sql.DateTime, now)
         .query(`
           UPDATE FACILITY_CHECK_DETAILS
-          SET
-            ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
-            STATUS = 1,
-            TKT_STATUS=1,
-            userid = @userid
-          WHERE FACILITY_CKD_ROOMNO = @roomNo
-            AND FACILITY_CKD_DEPT = @department
-            AND FACILITY_TID = @facilityTid
+          SET userid=@userid,
+              STATUS=1,
+              TKT_STATUS=1,
+              ASSIGNED_TIME = DATEADD(MINUTE,330,@now)
+          WHERE FACILITY_CKD_ROOMNO=@roomNo
+            AND FACILITY_CKD_DEPT=@department
+            AND FACILITY_TID=@facilityTid
         `);
 
-          // 3a️⃣ Nursing department → update nurse station table if needed
+      // 3a️⃣ Nursing department → update nurse station table if needed
       if (department.toUpperCase() === 'NURSING') {
         await pool.request()
           .input('MRNO', sql.NVarChar, mrno)
@@ -417,8 +417,10 @@ app.post('/assign', async (req, res) => {
           `);
       }
 
-
-      return res.send({ success: true, message: 'Assigned successfully.' });
+      return res.json({
+        success: true,
+        message: "Task assigned successfully",
+      });
     }
 
     // 3️⃣ Check if same user
