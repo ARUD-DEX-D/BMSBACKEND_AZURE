@@ -822,10 +822,8 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // IST Time
+    // ✅ Current time (DateTime.Now equivalent)
     const now = new Date();
-    now.setHours(now.getHours() + 5, now.getMinutes() + 30);
-    const formattedTime = now.toISOString().replace('T', ' ').split('.')[0];
 
     const stepFunctions = {
 
@@ -835,7 +833,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("time", formattedTime)
+          .input("time", sql.DateTime, now)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
@@ -854,7 +852,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("time", formattedTime)
+          .input("time", sql.DateTime, now)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
@@ -873,7 +871,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("time", formattedTime)
+          .input("time", sql.DateTime, now)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
@@ -886,8 +884,9 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           `);
       },
 
-      // ✅ File transferred (existing logic)
+      // ✅ File Transferred → INSERT into Discharge Summary
       FILE_TRANSFERRED: async () => {
+
         await pool.request()
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
@@ -925,9 +924,21 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FTID)) = @ftid
           `);
+
+        // ✅ INSERT into Discharge Summary with current time
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
+          .input("receivedTime", sql.DateTime, now)
+          .query(`
+            INSERT INTO DT_P2_DISCHARGE_SUMMARY
+            (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+            VALUES (@ftid, @mrno, @roomno, @receivedTime)
+          `);
       },
 
-      // ✅ NEW: Patient Checkout
+      // ✅ Patient Checkout
       PATIENT_CHECKOUT: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -943,7 +954,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
       },
     };
 
-    // 🔥 Execute checked steps only
+    // 🔥 Execute selected steps only
     for (const key of Object.keys(steps)) {
       if (steps[key] === true && stepFunctions[key]) {
         await stepFunctions[key]();
