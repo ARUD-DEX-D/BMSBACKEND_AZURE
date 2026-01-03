@@ -364,6 +364,7 @@ app.post('/assign', async (req, res) => {
     const current = result.recordset[0];
 
     // Normalize values
+    const status = Number(row.STATUS);       // 0=open, 1=assigned, 2=closed
     const assignStatus = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
     const currentUserId = (current.userid ?? '').toString().trim();
