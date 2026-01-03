@@ -904,13 +904,15 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
+          .input("completedTime", sql.DateTime, now)
           .query(`
-            UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 2
-            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND FACILITY_CKD_DEPT = 'NURSING'
+           UPDATE FACILITY_CHECK_DETAILS
+    SET TKT_STATUS = 2,
+        COMPLETED_TIME = @completedTime
+    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+      AND RTRIM(LTRIM(MRNO)) = @mrno
+      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+      AND FACILITY_CKD_DEPT = 'NURSING'
           `);
 
         await pool.request()
