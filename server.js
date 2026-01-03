@@ -630,7 +630,7 @@ app.post('/assign_process', async (req, res) => {
     const current = result.recordset[0];
     const status = Number(current.STATUS);       // 0=open, 1=assigned, 2=closed
     const ticketStatus = Number(current.TKT_STATUS);
-    const currentUserId = (current.userid ?? '').trim();
+    const currentUserId = (current.userid ?? '').toString().trim();
     const newUserId = userid.toString().trim();
     const forceReassignBool =
       forceReassign === true || forceReassign === 'true' || forceReassign === 1 || forceReassign === '1';
