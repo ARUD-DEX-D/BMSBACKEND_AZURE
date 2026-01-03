@@ -608,10 +608,11 @@ app.post('/assign_process', async (req, res) => {
     forceReassign
   } = req.body;
 
+  // ✅ Required fields check
   if (!userid || !roomNo || !department || !facilityTid) {
-    return res.status(400).send({
+    return res.status(400).json({
       success: false,
-      message: "Required fields missing"
+      message: "Required fields missing",
     });
   }
 
@@ -619,7 +620,7 @@ app.post('/assign_process', async (req, res) => {
     const pool = await sql.connect(dbConfig);
     const now = new Date();
 
-    // Fetch current assignment + ticket status
+    // 1️⃣ Fetch current assignment + ticket status
     const result = await pool.request()
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
@@ -633,49 +634,51 @@ app.post('/assign_process', async (req, res) => {
       `);
 
     if (result.recordset.length === 0) {
-      return res.status(404).send({ success: false, message: 'Ticket not found' });
+      return res.status(404).json({ success: false, message: "Ticket not found" });
     }
 
-    const current = result.recordset[0];
-    const status = Number(current.STATUS);        // 0=open, 1=assigned, 2=closed
-    const ticketStatus = Number(current.TKT_STATUS);
-    const currentUserId = (current.userid ?? '').toString().trim();
-    const newUserId = (userid ?? '').toString().trim();
+    const row = result.recordset[0];
+    const status = Number(row.STATUS);       // 0=open, 1=assigned, 2=closed
+    const ticketStatus = Number(row.TKT_STATUS);
+    const currentUser = (row.userid ?? '').trim();
+    const newUser = userid.toString().trim();
+    const isClosed = status === 2 || ticketStatus === 2;
+
     const forceReassignBool =
       forceReassign === true ||
       forceReassign === 'true' ||
       forceReassign === 1 ||
       forceReassign === '1';
 
-    // 1️⃣ Block closed tickets
-    if (ticketStatus === 2) {
-      return res.status(403).send({
+    // 2️⃣ Block closed tickets
+    if (isClosed) {
+      return res.status(403).json({
+        success: false,
         closed: true,
-        message: 'Ticket is closed. Assignment or edit is not allowed.'
+        message: "Ticket already closed",
       });
     }
 
-    // 2️⃣ First-time assignment
-    if (status === 0 || current.STATUS === null) {
+    // 3️⃣ First-time assignment
+    if (status === 0 || row.STATUS === null) {
       await pool.request()
-        .input('userid', sql.NVarChar, newUserId)
+        .input('userid', sql.NVarChar, newUser)
         .input('roomNo', sql.NVarChar, roomNo)
         .input('department', sql.NVarChar, department)
         .input('facilityTid', sql.NVarChar, facilityTid)
         .input('now', sql.DateTime, now)
         .query(`
           UPDATE FACILITY_CHECK_DETAILS
-          SET
-            userid = @userid,
-            STATUS = 1,
-            TKT_STATUS = 1,
-            ASSIGNED_TIME = DATEADD(MINUTE, 330, @now)
-          WHERE FACILITY_CKD_ROOMNO = @roomNo
-            AND FACILITY_CKD_DEPT = @department
-            AND FACILITY_TID = @facilityTid
+          SET userid=@userid,
+              STATUS=1,
+              TKT_STATUS=1,
+              ASSIGNED_TIME = DATEADD(MINUTE,330,@now)
+          WHERE FACILITY_CKD_ROOMNO=@roomNo
+            AND FACILITY_CKD_DEPT=@department
+            AND FACILITY_TID=@facilityTid
         `);
 
-      // 2a️⃣ Nursing department → insert into nurse station if not exists
+      // 3a️⃣ Nursing department → insert into nurse station if not exists
       if (department.toUpperCase() === 'NURSING' && mrno) {
         await pool.request()
           .input('MRNO', sql.NVarChar, mrno)
@@ -684,61 +687,62 @@ app.post('/assign_process', async (req, res) => {
           .query(`
             SET NOCOUNT ON;
             IF NOT EXISTS (
-              SELECT 1
-              FROM DT_P1_NURSE_STATION
-              WHERE MRNO = @MRNO AND ROOMNO = @ROOMNO AND FTID = @FTID
+              SELECT 1 FROM DT_P1_NURSE_STATION
+              WHERE MRNO=@MRNO AND ROOMNO=@ROOMNO AND FTID=@FTID
             )
             BEGIN
               INSERT INTO DT_P1_NURSE_STATION (MRNO, ROOMNO, STATUS, FTID)
-              VALUES (@MRNO, @ROOMNO, 0, @FTID)
+              VALUES (@MRNO,@ROOMNO,0,@FTID)
             END
           `);
       }
 
-      return res.send({ success: true, message: 'Task assigned successfully' });
+      return res.json({ success: true, message: "Task assigned successfully" });
     }
 
-    // 3️⃣ Same user → no action
-    if (currentUserId === newUserId) {
-      return res.send({
+    // 4️⃣ Already assigned to the same user
+    if (currentUser === newUser) {
+      return res.json({
         success: true,
         assignedToSelf: true,
-        message: 'Already assigned to you.'
+        message: "Already assigned to you",
       });
     }
 
-    // 4️⃣ Different user → ask for reassign if forceReassign=false
+    // 5️⃣ Already assigned to another user → ask for reassignment
     if (!forceReassignBool) {
-      return res.send({
+      return res.json({
+        success: false,
         alreadyAssigned: true,
-        currentUser: currentUserId,
-        message: `Already assigned to ${currentUserId}. Do you want to reassign?`
+        currentUser,
+        message: `Already assigned to ${currentUser}. Reassign?`,
       });
     }
 
-    // 5️⃣ Force reassign to new user
+    // 6️⃣ Force reassign
     await pool.request()
-      .input('userid', sql.NVarChar, newUserId)
+      .input('userid', sql.NVarChar, newUser)
       .input('roomNo', sql.NVarChar, roomNo)
       .input('department', sql.NVarChar, department)
       .input('facilityTid', sql.NVarChar, facilityTid)
+      .input('now', sql.DateTime, now)
       .query(`
         UPDATE FACILITY_CHECK_DETAILS
-        SET
-          userid = @userid,
-          ASSIGNED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-        WHERE FACILITY_CKD_ROOMNO = @roomNo
-          AND FACILITY_CKD_DEPT = @department
-          AND FACILITY_TID = @facilityTid
+        SET userid=@userid,
+            ASSIGNED_TIME = DATEADD(MINUTE,330,@now)
+        WHERE FACILITY_CKD_ROOMNO=@roomNo
+          AND FACILITY_CKD_DEPT=@department
+          AND FACILITY_TID=@facilityTid
       `);
 
-    return res.send({ success: true, message: 'User reassigned successfully.' });
+    return res.json({ success: true, message: "User reassigned successfully" });
 
   } catch (err) {
-    console.error('ASSIGN ERROR:', err);
-    return res.status(500).send({ success: false, error: err.message });
+    console.error("ASSIGN ERROR:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 
 
