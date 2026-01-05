@@ -679,7 +679,7 @@ app.post('/assign_process', async (req, res) => {
         `);
 
       // 3a️⃣ Nursing department → insert into nurse station if not exists
-      if (department.toUpperCase() === 'NURSING' && mrno) {
+      if (department.toUpperCase() === 'NURSING') {
         await pool.request()
           .input('MRNO', sql.NVarChar, mrno)
           .input('ROOMNO', sql.NVarChar, roomNo)
