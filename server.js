@@ -628,7 +628,7 @@ app.post('/assign_process', async (req, res) => {
     }
 
     const current = result.recordset[0];
-    const assignStatus = Number(current.STATUS);
+    //const assignStatus = Number(current.STATUS);
     const ticketStatus = Number(current.TKT_STATUS);
     const currentUserId = (current.userid ?? '').toString().trim();
     const newUserId = (userid ?? '').toString().trim();
@@ -640,7 +640,7 @@ app.post('/assign_process', async (req, res) => {
 
     // 🚫 Closed ticket
   // 🚫 Block closed tickets (VERY IMPORTANT)
-if (assignStatus === 2 || ticketStatus === 2) {
+if (ticketStatus === 2) {
   return res.status(403).send({
     success: false,
     closed: true,
@@ -650,7 +650,7 @@ if (assignStatus === 2 || ticketStatus === 2) {
 
 
     // 🆕 First-time assign
-    if (assignStatus === 0 || current.STATUS === null) {
+    if (ticketStatus === 0 || current.TKT_STATUS === null) {
 
       await pool.request()
         .input('userid', sql.NVarChar, newUserId)
