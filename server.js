@@ -639,12 +639,15 @@ app.post('/assign_process', async (req, res) => {
       forceReassign === '1';
 
     // 🚫 Closed ticket
-    if (ticketStatus === 2) {
-      return res.status(403).send({
-        closed: true,
-        error: 'Ticket is closed. Assignment or edit is not allowed.'
-      });
-    }
+  // 🚫 Block closed tickets (VERY IMPORTANT)
+if (assignStatus === 2 || ticketStatus === 2) {
+  return res.status(403).send({
+    success: false,
+    closed: true,
+    message: 'Ticket already closed. Assignment is not allowed.'
+  });
+}
+
 
     // 🆕 First-time assign
     if (assignStatus === 0 || current.STATUS === null) {
