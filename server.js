@@ -678,24 +678,38 @@ app.post('/assign_process', async (req, res) => {
             AND FACILITY_TID=@facilityTid
         `);
 
-      // 3a️⃣ Nursing department → insert into nurse station if not exists
-      if (department.toUpperCase() === 'NURSING') {
-        await pool.request()
-          .input('MRNO', sql.NVarChar, mrno)
-          .input('ROOMNO', sql.NVarChar, roomNo)
-          .input('FTID', sql.NVarChar, facilityTid)
-          .query(`
-            SET NOCOUNT ON;
-            IF NOT EXISTS (
-              SELECT 1 FROM DT_P1_NURSE_STATION
-              WHERE MRNO=@MRNO AND ROOMNO=@ROOMNO AND FTID=@FTID
-            )
-            BEGIN
-              INSERT INTO DT_P1_NURSE_STATION (MRNO, ROOMNO, STATUS, FTID)
-              VALUES (@MRNO,@ROOMNO,0,@FTID)
-            END
-          `);
-      }
+     // 3a️⃣ Nursing department → insert into nurse station if not exists
+if (department.toUpperCase() === 'NURSING') {
+
+  if (!mrno || mrno.toString().trim() === '') {
+    console.warn('⚠️ MRNO missing, skipping nurse station insert', {
+      roomNo,
+      facilityTid
+    });
+  } else {
+    await pool.request()
+      .input('MRNO', sql.NVarChar, mrno.toString().trim())
+      .input('ROOMNO', sql.NVarChar, roomNo)
+      .input('FTID', sql.NVarChar, facilityTid)
+      .query(`
+        SET NOCOUNT ON;
+        IF NOT EXISTS (
+          SELECT 1
+          FROM DT_P1_NURSE_STATION
+          WHERE MRNO=@MRNO
+            AND ROOMNO=@ROOMNO
+            AND FTID=@FTID
+        )
+        BEGIN
+          INSERT INTO DT_P1_NURSE_STATION
+            (MRNO, ROOMNO, STATUS, FTID)
+          VALUES
+            (@MRNO, @ROOMNO, 0, @FTID)
+        END
+      `);
+  }
+}
+
 
       return res.json({ success: true, message: "Task assigned successfully" });
     }
