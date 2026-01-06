@@ -1531,7 +1531,7 @@ app.post('/api/getsummarydischargeStatus', async (req, res) => {
 
 
 app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
-    const { ROOMNO, MRNO, FTID, steps, user, DEPT } = req.body;
+    const { ROOMNO, MRNO, FTID, steps, user } = req.body;
 
     if (!ROOMNO || !MRNO || !FTID || !steps) {
         return res.status(400).json({ message: "Missing required fields" });
@@ -1540,17 +1540,15 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
 
-        // IST Timestamp
-        const now = new Date();
-        now.setHours(now.getHours() + 5, now.getMinutes() + 30);
-        const formattedTime = now.toISOString().replace('T', ' ').split('.')[0];
+        // IST timestamp
+        const nowUtc = new Date();
+        const ist = new Date(nowUtc.getTime() + 330 * 60000);
+        const formattedTime = ist.toISOString().replace('T', ' ').split('.')[0];
 
-        // Step functions map for SUMMARY workflow
         const stepFunctions = {
 
             FILE_SIGNIN: async () => {
                 await pool.request()
-                    .input("value", sql.Int, 1)
                     .input("time", sql.VarChar, formattedTime)
                     .input("user", sql.VarChar, user)
                     .input("roomno", sql.VarChar, ROOMNO)
@@ -1558,18 +1556,17 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     .input("ftid", sql.VarChar, FTID)
                     .query(`
                         UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET FILE_SIGNIN = @value,
+                        SET FILE_SIGNIN = 1,
                             FILE_SIGNIN_TIME = @time,
                             [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                          AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FTID)) = @ftid
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
                     `);
             },
 
             SUMMARY_FILE_INITIATION: async () => {
                 await pool.request()
-                    .input("value", sql.Int, 1)
                     .input("time", sql.VarChar, formattedTime)
                     .input("user", sql.VarChar, user)
                     .input("roomno", sql.VarChar, ROOMNO)
@@ -1577,7 +1574,7 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     .input("ftid", sql.VarChar, FTID)
                     .query(`
                         UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET SUMMARY_FILE_INITIATION = @value,
+                        SET SUMMARY_FILE_INITIATION = 1,
                             SUMMARY_FILE_INITIATION_TIME = @time,
                             [USER] = @user
                         WHERE RTRIM(LTRIM(ROOMNO))=@roomno
@@ -1588,7 +1585,6 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
 
             PREPARE_SUMMARY_DRAFT: async () => {
                 await pool.request()
-                    .input("value", sql.Int, 1)
                     .input("time", sql.VarChar, formattedTime)
                     .input("user", sql.VarChar, user)
                     .input("roomno", sql.VarChar, ROOMNO)
@@ -1596,27 +1592,8 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     .input("ftid", sql.VarChar, FTID)
                     .query(`
                         UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET PREPARE_SUMMARY_DRAFT = @value,
+                        SET PREPARE_SUMMARY_DRAFT = 1,
                             PREPARE_SUMMARY_DRAFT_TIME = @time,
-                            [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
-                    `);
-            },
-
-            DOCTOR_AUTHORIZATION: async () => {
-                await pool.request()
-                    .input("value", sql.Int, 1)
-                    .input("time", sql.VarChar, formattedTime)
-                    .input("user", sql.VarChar, user)
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
-                        UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET DOCTOR_AUTHORIZATION = @value,
-                            DOCTOR_AUTHORIZATION_TIME = @time,
                             [USER] = @user
                         WHERE RTRIM(LTRIM(ROOMNO))=@roomno
                           AND RTRIM(LTRIM(MRNO))=@mrno
@@ -1626,7 +1603,6 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
 
             SUMMARY_COMPLETED: async () => {
                 await pool.request()
-                    .input("value", sql.Int, 1)
                     .input("time", sql.VarChar, formattedTime)
                     .input("user", sql.VarChar, user)
                     .input("roomno", sql.VarChar, ROOMNO)
@@ -1634,7 +1610,7 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     .input("ftid", sql.VarChar, FTID)
                     .query(`
                         UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET SUMMARY_COMPLETED = @value,
+                        SET SUMMARY_COMPLETED = 1,
                             SUMMARY_COMPLETED_TIME = @time,
                             [USER] = @user
                         WHERE RTRIM(LTRIM(ROOMNO))=@roomno
@@ -1643,72 +1619,71 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     `);
             },
 
-            FILE_DISPATCHED: async () => {
+            FILE_DISPATCHED_DA: async () => {
 
-    // 1️⃣ Mark summary file dispatched
-    await pool.request()
-        .input("value", sql.Int, 1)
-        .input("time", sql.VarChar, formattedTime)
-        .input("user", sql.VarChar, user)
-        .input("roomno", sql.VarChar, ROOMNO)
-        .input("mrno", sql.VarChar, MRNO)
-        .input("ftid", sql.VarChar, FTID)
-        .query(`
-            UPDATE DT_P2_DISCHARGE_SUMMARY
-            SET FILE_DISPATCHED = @value,
-                FILE_DISPATCHED_TIME = @time,
-                [USER] = @user
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
-        `);
+                // 1️⃣ Mark file dispatched
+                await pool.request()
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", sql.VarChar, ROOMNO)
+                    .input("mrno", sql.VarChar, MRNO)
+                    .input("ftid", sql.VarChar, FTID)
+                    .query(`
+                        UPDATE DT_P2_DISCHARGE_SUMMARY
+                        SET FILE_DISPATCHED_AUTHORIZE = 1,
+                            FILE_DISPATCHED_AUTHORIZE_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FTID))=@ftid
+                    `);
 
-    // 2️⃣ Close SUMMARY ticket (✅ REQUIRED)
+                // 2️⃣ Close SUMMARY ticket
+                await pool.request()
+                    .input("roomno", sql.VarChar, ROOMNO)
+                    .input("mrno", sql.VarChar, MRNO)
+                    .input("ftid", sql.VarChar, FTID)
+                    .query(`
+                        UPDATE FACILITY_CHECK_DETAILS
+                        SET TKT_STATUS = 2,
+                            COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+                          AND RTRIM(LTRIM(MRNO))=@mrno
+                          AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+                          AND FACILITY_CKD_DEPT='SUMMARY'
+                    `);
+
+                // 3  OPEN Doctor Authorization ticket (TKT_STATUS = 0)
     await pool.request()
         .input("roomno", sql.VarChar, ROOMNO)
         .input("mrno", sql.VarChar, MRNO)
         .input("ftid", sql.VarChar, FTID)
         .query(`
             UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 2,
-            COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+            SET TKT_STATUS = 0
             WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND FACILITY_CKD_DEPT = 'SUMMARY'
+              AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
         `);
-
-    // 3️⃣ Update BED_DETAILS flag
-    await pool.request()
-        .input("roomno", sql.VarChar, ROOMNO)
-        .input("mrno", sql.VarChar, MRNO)
-        .input("ftid", sql.VarChar, FTID)
-        .query(`
-            UPDATE BED_DETAILS
-            SET DISCHARGE_SUMMARY = 1
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
-        `);
-}
-
-
+            }
         };
 
-        // 🔹 Execute only selected steps
-        for (const key in steps) {
-            if (steps[key] && stepFunctions[key]) {
+        // Execute selected steps only
+        for (const key of Object.keys(steps)) {
+            if (steps[key] === true && stepFunctions[key]) {
                 await stepFunctions[key]();
             }
         }
 
-        res.json({
-            message: "SUMMARY workflow updated successfully"
-        });
+        res.json({ message: "SUMMARY workflow updated successfully" });
 
     } catch (err) {
         console.error("❌ SUMMARY WORKFLOW ERROR:", err);
-        res.status(500).json({ message: "Server Error", error: err.message });
+        res.status(500).json({
+            message: "Server Error",
+            error: err.message
+        });
     }
 });
 
