@@ -1453,9 +1453,9 @@ app.post('/api/getsummarydischargeStatus', async (req, res) => {
         { key: "SUMMARY_FILE_INITIATION", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "SUMMARY_FILE_INITIATION", timeColumn: "SUMMARY_FILE_INITIATION_TIME", doneValue: [1] },
         { key: "PREPARE_SUMMARY_DRAFT", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "PREPARE_SUMMARY_DRAFT", timeColumn: "PREPARE_SUMMARY_DRAFT_TIME", doneValue: [1] },
         
-        { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
+        // { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
         { key: "SUMMARY_COMPLETED", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "SUMMARY_COMPLETED", timeColumn: "SUMMARY_COMPLETED_TIME", doneValue: [1] },
-        { key: "FILE_DISPATCHED", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "FILE_DISPATCHED", timeColumn: "FILE_DISPATCHED_TIME", doneValue: [1] },
+        { key: "FILE_DISPATCHED", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "FILE_DISPATCHED_AUTHORIZE", timeColumn: "FILE_DISPATCHED_AUTHORIZE_TIME", doneValue: [1] },
         
     ];
 
@@ -1478,7 +1478,7 @@ app.post('/api/getsummarydischargeStatus', async (req, res) => {
                     WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
                       AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'PHARMACY'
+                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
                 `;
             } else {
                 query = `
@@ -1516,7 +1516,7 @@ app.post('/api/getsummarydischargeStatus', async (req, res) => {
         res.json(resultObj);
 
     } catch (err) {
-        console.error("❌ Nursing Status Error:", err);
+        console.error("❌ Summary Status Error:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
@@ -1619,7 +1619,7 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                     `);
             },
 
-            FILE_DISPATCHED_DA: async () => {
+            FILE_DISPATCHED_AUTHORIZE: async () => {
 
                 // 1️⃣ Mark file dispatched
                 await pool.request()
