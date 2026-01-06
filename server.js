@@ -1455,7 +1455,7 @@ app.post('/api/getsummarydischargeStatus', async (req, res) => {
         
         // { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
         { key: "SUMMARY_COMPLETED", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "SUMMARY_COMPLETED", timeColumn: "SUMMARY_COMPLETED_TIME", doneValue: [1] },
-        { key: "FILE_DISPATCHED", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "FILE_DISPATCHED_AUTHORIZE", timeColumn: "FILE_DISPATCHED_AUTHORIZE_TIME", doneValue: [1] },
+        { key: "FILE_DISPATCHED_AUTHORIZE", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "FILE_DISPATCHED_AUTHORIZE", timeColumn: "FILE_DISPATCHED_AUTHORIZE_TIME", doneValue: [1] },
         
     ];
 
