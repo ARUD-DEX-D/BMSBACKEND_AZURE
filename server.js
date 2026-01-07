@@ -1559,9 +1559,9 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                         SET FILE_SIGNIN = 1,
                             FILE_SIGNIN_TIME = @time,
                             [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
                     `);
             },
 
@@ -1577,9 +1577,9 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                         SET SUMMARY_FILE_INITIATION = 1,
                             SUMMARY_FILE_INITIATION_TIME = @time,
                             [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
                     `);
             },
 
@@ -1595,9 +1595,9 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                         SET PREPARE_SUMMARY_DRAFT = 1,
                             PREPARE_SUMMARY_DRAFT_TIME = @time,
                             [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
                     `);
             },
 
@@ -1613,81 +1613,85 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
                         SET SUMMARY_COMPLETED = 1,
                             SUMMARY_COMPLETED_TIME = @time,
                             [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
                     `);
             },
 
             FILE_DISPATCHED_AUTHORIZE: async () => {
 
-                // 1️⃣ Mark file dispatched
-                await pool.request()
-                    .input("time", sql.VarChar, formattedTime)
-                    .input("user", sql.VarChar, user)
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
-                        UPDATE DT_P2_DISCHARGE_SUMMARY
-                        SET FILE_DISPATCHED_AUTHORIZE = 1,
-                            FILE_DISPATCHED_AUTHORIZE_TIME = @time,
-                            [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FTID))=@ftid
-                    `);
+                const transaction = new sql.Transaction(pool);
 
-                // 2️⃣ Close SUMMARY ticket
-                await pool.request()
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
+                try {
+                    await transaction.begin();
+                    const request = new sql.Request(transaction);
+
+                    // 1️⃣ Mark file dispatched
+                    await request
+                        .input("time", sql.VarChar, formattedTime)
+                        .input("user", sql.VarChar, user)
+                        .input("roomno", sql.VarChar, ROOMNO)
+                        .input("mrno", sql.VarChar, MRNO)
+                        .input("ftid", sql.VarChar, FTID)
+                        .query(`
+                            UPDATE DT_P2_DISCHARGE_SUMMARY
+                            SET FILE_DISPATCHED_AUTHORIZE = 1,
+                                FILE_DISPATCHED_AUTHORIZE_TIME = @time,
+                                [USER] = @user
+                            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                              AND RTRIM(LTRIM(MRNO)) = @mrno
+                              AND RTRIM(LTRIM(FTID)) = @ftid
+                        `);
+
+                    // 2️⃣ Close SUMMARY ticket
+                    await request.query(`
                         UPDATE FACILITY_CHECK_DETAILS
                         SET TKT_STATUS = 2,
                             COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
-                          AND RTRIM(LTRIM(MRNO))=@mrno
-                          AND RTRIM(LTRIM(FACILITY_TID))=@ftid
-                          AND FACILITY_CKD_DEPT='SUMMARY'
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                          AND FACILITY_CKD_DEPT = 'SUMMARY'
                     `);
 
-                // 3  OPEN Doctor Authorization ticket (TKT_STATUS = 0)
-    await pool.request()
-        .input("roomno", sql.VarChar, ROOMNO)
-        .input("mrno", sql.VarChar, MRNO)
-        .input("ftid", sql.VarChar, FTID)
-        .query(`
-            UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 0
-            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
-        `);
+                    // 3️⃣ Open DOCTOR_AUTHORIZATION ticket
+                    await request.query(`
+                        UPDATE FACILITY_CHECK_DETAILS
+                        SET TKT_STATUS = 0
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                          AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
+                    `);
 
-  // 4️⃣ Insert Doctor Authorization record (no duplicate)
-        await request
-            .input("receivedTime", sql.VarChar, formattedTime)
-            .query(`
-                IF NOT EXISTS (
-                    SELECT 1
-                    FROM DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
-                    WHERE FTID = @ftid
-                      AND MRNO = @mrno
-                      AND ROOMNO = @roomno
-                )
-                INSERT INTO DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
-                    (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-                VALUES
-                    (@ftid, @mrno, @roomno, @receivedTime)
-            `);
+                    // 4️⃣ Insert Doctor Authorization record
+                    await request
+                        .input("receivedTime", sql.VarChar, formattedTime)
+                        .query(`
+                            IF NOT EXISTS (
+                                SELECT 1
+                                FROM DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
+                                WHERE FTID = @ftid
+                                  AND MRNO = @mrno
+                                  AND ROOMNO = @roomno
+                            )
+                            INSERT INTO DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
+                                (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+                            VALUES
+                                (@ftid, @mrno, @roomno, @receivedTime)
+                        `);
 
+                    await transaction.commit();
+
+                } catch (err) {
+                    await transaction.rollback();
+                    throw err;
+                }
             }
         };
 
-        // Execute selected steps only
+        // Execute selected steps
         for (const key of Object.keys(steps)) {
             if (steps[key] === true && stepFunctions[key]) {
                 await stepFunctions[key]();
