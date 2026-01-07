@@ -1666,6 +1666,24 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
               AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
         `);
+
+  // 4️⃣ Insert Doctor Authorization record (no duplicate)
+        await request
+            .input("receivedTime", sql.VarChar, formattedTime)
+            .query(`
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
+                    WHERE FTID = @ftid
+                      AND MRNO = @mrno
+                      AND ROOMNO = @roomno
+                )
+                INSERT INTO DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
+                    (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+                VALUES
+                    (@ftid, @mrno, @roomno, @receivedTime)
+            `);
+
             }
         };
 
