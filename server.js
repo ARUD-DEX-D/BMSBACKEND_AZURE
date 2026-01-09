@@ -95,6 +95,26 @@ LEFT JOIN LOGIN U
 
 
 
+// Convert DB date/time to IST (Indian Standard Time)
+function convertToIST(dateTime) {
+    if (!dateTime) return null;
+
+    const utcDate = new Date(dateTime); // parse your DB datetime
+    if (isNaN(utcDate)) return null;
+
+    const istOffset = 5.5 * 60; // IST = UTC + 5:30
+    const istDate = new Date(utcDate.getTime() + istOffset * 60000);
+
+    // Format as YYYY-MM-DD HH:mm:ss
+    const yyyy = istDate.getFullYear();
+    const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(istDate.getDate()).padStart(2, '0');
+    const hh = String(istDate.getHours()).padStart(2, '0');
+    const min = String(istDate.getMinutes()).padStart(2, '0');
+    const ss = String(istDate.getSeconds()).padStart(2, '0');
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+}
 
 
 
