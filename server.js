@@ -1714,8 +1714,6 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
 
 
 
-
-
 app.post('/api/getsummaryauthorizeStatus', async (req, res) => {
     const { ROOMNO, MRNO, FTID, DEPT } = req.body;
 
@@ -1800,53 +1798,124 @@ app.post('/api/getsummaryauthorizeStatus', async (req, res) => {
 
 
 
+app.post('/api/UPDATE_SUMMARYAUTHORIZE_WORKFLOW', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, steps, user, DEPT } = req.body;
+
+    if (!ROOMNO || !MRNO || !FTID || !steps) {
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    try {
+        const pool = await sql.connect(dbConfig);
+
+        // IST Timestamp
+        const now = new Date();
+        now.setHours(now.getHours() + 5, now.getMinutes() + 30);
+        const formattedTime = now.toISOString().replace('T', ' ').split('.')[0];
+
+        // Step functions map for BILLING workflow
+       const stepFunctions = {
+
+    DOCTOR_AUTHORIZATION: async () => {
+        await pool.request()
+            .input("value", sql.Int, 1)
+            .input("time", sql.VarChar, formattedTime)
+            .input("user", sql.VarChar, user)
+            .input("roomno", ROOMNO)
+            .input("mrno", MRNO)
+            .input("ftid", FTID)
+            .query(`
+                UPDATE DT_P4_BILLING
+                SET DOCTOR_AUTHORIZATION = @value,
+                    DOCTOR_AUTHORIZATION_TIME = @time,
+                    [USER] = @user
+                WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FTID))=@ftid
+            `);
+    },
+
+    FILE_DISPATCHED: async () => {
+        // update main billing table
+        await pool.request()
+            .input("value", sql.Int, 1)
+            .input("time", sql.VarChar, formattedTime)
+            .input("user", sql.VarChar, user)
+            .input("roomno", ROOMNO)
+            .input("mrno", MRNO)
+            .input("ftid", FTID)
+            .query(`
+                UPDATE DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
+                SET FILE_DISPATCHED = @value,
+                    FILE_DISPATCHED_TIME = @time,
+                    [USER] = @user
+                WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FTID))=@ftid
+            `);
+
+        // close DOCTOR_AUTHORIZE ticket
+        await pool.request()
+            .input("roomno", ROOMNO)
+            .input("mrno", MRNO)
+            .input("ftid", FTID)
+            .query(`
+                UPDATE FACILITY_CHECK_DETAILS
+                SET TKT_STATUS = 2
+                WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+                  AND FACILITY_CKD_DEPT='DOCTOR_AUTHORIZATION'
+            `);
+
+        // open PHARMACY ticket
+        await pool.request()
+            .input("roomno", ROOMNO)
+            .input("mrno", MRNO)
+            .input("ftid", FTID)
+            .query(`
+                UPDATE FACILITY_CHECK_DETAILS
+                SET TKT_STATUS = 0
+                WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FACILITY_TID))=@ftid
+                  AND FACILITY_CKD_DEPT='PHARMACY'
+            `);
+
+        // mark IN BED_DETAIL  SUMMARY done
+        await pool.request()
+            .input("roomno", ROOMNO)
+            .input("mrno", MRNO)
+            .input("ftid", FTID)
+            .query(`
+                UPDATE BED_DETAILS
+                SET DISCHARGE_SUMMARY = 1
+                WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FTID))=@ftid
+            `);
+    }
+};
 
 
+        // 🔹 Execute only selected steps
+        for (const key in steps) {
+            if (steps[key] && stepFunctions[key]) {
+                await stepFunctions[key]();
+            }
+        }
 
+        res.json({ message: "Billing workflow updated successfully" });
 
-
-
-
-
-
-
-
-
-
-
-
+    } catch (err) {
+        console.error("❌ BILLING WORKFLOW ERROR:", err);
+        res.status(500).json({ message: "Server Error", error: err.message });
+    }
+});
 
 
 
 ///////////////////////END SUMMARY DEPARTMENT/////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
