@@ -1359,7 +1359,7 @@ await request.query(`
         COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
     WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
       AND RTRIM(LTRIM(MRNO)) = @mrno
-      AND RTRIM(LTRIM(FTID)) = @ftid
+      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
       AND FACILITY_CKD_DEPT = 'PHARMACY'
 `);
 
@@ -1369,7 +1369,7 @@ await request.query(`
     SET TKT_STATUS = 0
     WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
       AND RTRIM(LTRIM(MRNO)) = @mrno
-      AND RTRIM(LTRIM(FTID)) = @ftid
+      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
       AND FACILITY_CKD_DEPT = 'BILLING'
 `);
 
