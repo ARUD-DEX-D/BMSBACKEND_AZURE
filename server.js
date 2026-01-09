@@ -1280,6 +1280,8 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
+    console.log("Received workflow update:", { ROOMNO, MRNO, FTID, steps, user });
+
     try {
         const pool = await sql.connect(dbConfig);
 
@@ -1288,9 +1290,8 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
         const ist = new Date(nowUtc.getTime() + 330 * 60000);
         const formattedTime = ist.toISOString().replace('T', ' ').split('.')[0];
 
+        // Define functions for each step
         const stepFunctions = {
-
-         
 
             PHARMACY_FILE_INITIATION: async () => {
                 await pool.request()
@@ -1328,12 +1329,8 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
                     `);
             },
 
-            
-
             FILE_DISPATCHED: async () => {
-
                 const transaction = new sql.Transaction(pool);
-
                 try {
                     await transaction.begin();
                     const request = new sql.Request(transaction);
@@ -1360,24 +1357,27 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
                         UPDATE FACILITY_CHECK_DETAILS
                         SET TKT_STATUS = 2,
                             COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
                           AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                          AND FACILITY_CKD_DEPT = 'PHARMACY'
+                          AND RTRIM(LTRIM(FTID)) = @ftid
+                          AND DEPT = 'PHARMACY'
                     `);
 
                     // 3️⃣ Open BILLING ticket
                     await request.query(`
                         UPDATE FACILITY_CHECK_DETAILS
                         SET TKT_STATUS = 0
-                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
                           AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                          AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'BILLING'
+                          AND RTRIM(LTRIM(FTID)) = @ftid
+                          AND DEPT = 'BILLING'
                     `);
 
-                    // 4️⃣ Insert BILLING record
+                    // 4️⃣ Insert BILLING record if not exists
                     await request
+                        .input("ftid", sql.VarChar, FTID)
+                        .input("mrno", sql.VarChar, MRNO)
+                        .input("roomno", sql.VarChar, ROOMNO)
                         .input("receivedTime", sql.VarChar, formattedTime)
                         .query(`
                             IF NOT EXISTS (
@@ -1394,17 +1394,19 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
                         `);
 
                     await transaction.commit();
-
+                    console.log("✔ FILE_DISPATCHED step committed successfully.");
                 } catch (err) {
                     await transaction.rollback();
+                    console.error("❌ FILE_DISPATCHED transaction rollback:", err);
                     throw err;
                 }
             }
         };
 
-        // Execute selected steps
+        // Execute steps in order
         for (const key of Object.keys(steps)) {
             if (steps[key] === true && stepFunctions[key]) {
+                console.log(`Executing step: ${key}`);
                 await stepFunctions[key]();
             }
         }
@@ -1412,7 +1414,7 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
         res.json({ message: "PHARMACY workflow updated successfully" });
 
     } catch (err) {
-        console.error("❌ PHARMACY WORKFLOW ERROR:", err);
+        console.error("❌ PHARMACY WORKFLOW ERROR:", err.stack);
         res.status(500).json({
             message: "Server Error",
             error: err.message
