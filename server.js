@@ -1352,26 +1352,27 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
                               AND RTRIM(LTRIM(FTID)) = @ftid
                         `);
 
-                    // 2️⃣ Close PHARMACY ticket
-                    await request.query(`
-                        UPDATE FACILITY_CHECK_DETAILS
-                        SET TKT_STATUS = 2,
-                            COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                          AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FTID)) = @ftid
-                          AND DEPT = 'PHARMACY'
-                    `);
+                   // 2️⃣ Close PHARMACY ticket
+await request.query(`
+    UPDATE FACILITY_CHECK_DETAILS
+    SET TKT_STATUS = 2,
+        COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+    WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+      AND RTRIM(LTRIM(MRNO)) = @mrno
+      AND RTRIM(LTRIM(FTID)) = @ftid
+      AND FACILITY_CKD_DEPT = 'PHARMACY'
+`);
 
-                    // 3️⃣ Open BILLING ticket
-                    await request.query(`
-                        UPDATE FACILITY_CHECK_DETAILS
-                        SET TKT_STATUS = 0
-                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                          AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FTID)) = @ftid
-                          AND DEPT = 'BILLING'
-                    `);
+// 3️⃣ Open BILLING ticket
+await request.query(`
+    UPDATE FACILITY_CHECK_DETAILS
+    SET TKT_STATUS = 0
+    WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+      AND RTRIM(LTRIM(MRNO)) = @mrno
+      AND RTRIM(LTRIM(FTID)) = @ftid
+      AND FACILITY_CKD_DEPT = 'BILLING'
+`);
+
 
                     // 4️⃣ Insert BILLING record if not exists
                     await request
