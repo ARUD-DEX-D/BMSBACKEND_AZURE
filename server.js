@@ -1385,36 +1385,57 @@ app.post('/api/UPDATE_BED_DETAILS_PHARMACY_TASK', async (req, res) => {
 //==============START===================================================================//
 
 app.post('/api/CLOSE_PHARMACY_TICKET', async (req, res) => {
-    const { MRNO, FTID, DEPARTMENT } = req.body;
+    const { ROOMNO, MRNO, FTID, DEPARTMENT } = req.body;
 
-    if (!MRNO || !FTID || !DEPARTMENT) {
-        return res.status(400).json({ message: "MRNO, FTID & DEPARTMENT are required" });
+    if (!ROOMNO || !MRNO || !FTID || !DEPARTMENT) {
+        return res.status(400).json({ message: "ROOMNO, MRNO, FTID & DEPARTMENT are required" });
     }
 
     try {
         const pool = await sql.connect(dbConfig);
 
-        const query = `
+        // 1️⃣ Close the ticket
+        const closeQuery = `
             UPDATE FACILITY_CHECK_DETAILS
             SET TKT_STATUS = 2
-            WHERE RTRIM(LTRIM(MRNO)) = @mrno
+            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
               AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = @department
         `;
 
         await pool.request()
+            .input("roomno", sql.VarChar, ROOMNO.trim())
             .input("mrno", sql.VarChar, MRNO.trim())
             .input("ftid", sql.VarChar, FTID.trim())
             .input("department", sql.VarChar, DEPARTMENT.trim())
-            .query(query);
+            .query(closeQuery);
 
-        res.json({ message: "Ticket closed successfully" });
+        // 2️⃣ Insert into DT_P5_INSURANCE with IST timestamp
+        const now = new Date();
+        now.setHours(now.getHours() + 5, now.getMinutes() + 30); // IST adjustment
+
+        const insertQuery = `
+            INSERT INTO DT_P5_INSURANCE
+            (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+            VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE, 330, @now))
+        `;
+
+        await pool.request()
+            .input("roomno", sql.VarChar, ROOMNO.trim())
+            .input("mrno", sql.VarChar, MRNO.trim())
+            .input("ftid", sql.VarChar, FTID.trim())
+            .input("now", sql.DateTime, now)
+            .query(insertQuery);
+
+        res.json({ message: "Ticket closed and inserted into insurance successfully" });
 
     } catch (err) {
-        console.error("❌ Close Ticket Error:", err);
+        console.error("❌ Close Pharmacy Ticket Error:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
+
 
 
 
@@ -2072,6 +2093,20 @@ app.post('/api/UPDATE_BILLING_WORKFLOW', async (req, res) => {
                   AND RTRIM(LTRIM(MRNO))=@mrno
                   AND RTRIM(LTRIM(FTID))=@ftid
             `);
+
+
+            // ✅ INSERT into INSURANCE with current time
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
+          .input('now', sql.DateTime, now)
+          .query(`
+            INSERT INTO DT_P5_INSURANCE
+            (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+            VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE,330,@now))
+          `);
+
     }
 };
 
