@@ -1393,7 +1393,14 @@ await request.query(`
       AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
       AND FACILITY_CKD_DEPT = 'BILLING'
 `);
-
+ // mark IN BED_DETAIL  PHARMACY  done
+        await request.query(`
+                UPDATE BED_DETAILS
+                SET PHARMACY = 1
+                WHERE RTRIM(LTRIM(ROOMNO))=@roomno
+                  AND RTRIM(LTRIM(MRNO))=@mrno
+                  AND RTRIM(LTRIM(FTID))=@ftid
+            `);
 
                     // 4️⃣ Insert BILLING record if not exists
                     await request.query(`
