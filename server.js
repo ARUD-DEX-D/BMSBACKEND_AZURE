@@ -1393,45 +1393,67 @@ app.post('/api/CLOSE_PHARMACY_TICKET', async (req, res) => {
 
     try {
         const pool = await sql.connect(dbConfig);
+        const transaction = new sql.Transaction(pool);
 
-        // 1️⃣ Close the ticket
-        const closeQuery = `
-            UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 2 , COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = @department
+        await transaction.begin();
+
+        const request = new sql.Request(transaction);
+
+        // IST timestamp
+        const now = new Date();
+        now.setHours(now.getHours() + 5, now.getMinutes() + 30);
+
+        // 1️⃣ Check if ticket exists
+        const checkQuery = `
+            SELECT COUNT(*) AS count
+            FROM FACILITY_CHECK_DETAILS
+            WHERE ROOMNO = @roomno
+              AND MRNO = @mrno
+              AND FACILITY_TID = @ftid
+              AND FACILITY_CKD_DEPT = @department
         `;
 
-        await pool.request()
+        const checkResult = await request
             .input("roomno", sql.VarChar, ROOMNO.trim())
             .input("mrno", sql.VarChar, MRNO.trim())
             .input("ftid", sql.VarChar, FTID.trim())
             .input("department", sql.VarChar, DEPARTMENT.trim())
-            .query(closeQuery);
+            .query(checkQuery);
 
-        // 2️⃣ Insert into DT_P5_INSURANCE with IST timestamp
-        const now = new Date();
-        now.setHours(now.getHours() + 5, now.getMinutes() + 30); // IST adjustment
+        if (checkResult.recordset[0].count === 0) {
+            await transaction.rollback();
+            return res.status(404).json({ message: "Ticket not found for the given ROOMNO/MRNO/FTID/DEPARTMENT" });
+        }
 
+        // 2️⃣ Close the ticket
+        const closeQuery = `
+            UPDATE FACILITY_CHECK_DETAILS
+            SET TKT_STATUS = 2,
+                COMPLETED_TIME = @now
+            WHERE ROOMNO = @roomno
+              AND MRNO = @mrno
+              AND FACILITY_TID = @ftid
+              AND FACILITY_CKD_DEPT = @department
+        `;
+
+        await request.query(closeQuery);
+
+        // 3️⃣ Insert into billing/insurance
         const insertQuery = `
             INSERT INTO DT_P4_BILLING
             (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-            VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE, 330, @now))
+            VALUES (@ftid, @mrno, @roomno, @now)
         `;
 
-        await pool.request()
-            .input("roomno", sql.VarChar, ROOMNO.trim())
-            .input("mrno", sql.VarChar, MRNO.trim())
-            .input("ftid", sql.VarChar, FTID.trim())
-            .input("now", sql.DateTime, now)
-            .query(insertQuery);
+        await request.query(insertQuery);
 
-        res.json({ message: "Ticket closed and inserted into insurance successfully" });
+        await transaction.commit();
+
+        res.json({ message: "Ticket closed and inserted into billing successfully" });
 
     } catch (err) {
         console.error("❌ Close Pharmacy Ticket Error:", err);
+        try { await transaction.rollback(); } catch (_) {}
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
