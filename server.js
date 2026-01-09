@@ -860,52 +860,20 @@ app.get('/notifications/:department/today', async (req, res) => {
 
 // API for Nursing Discharge Task ===========================================
 
-aapp.post('/api/getnursingdischargeStatus', async (req, res) => {
-    const { ROOMNO, MRNO, FTID } = req.body;
+app.post('/api/getnursingdischargeStatus', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
 
-    if (!ROOMNO || !MRNO || !FTID) {
-        return res.status(400).json({
-            message: 'ROOMNO, MRNO and FTID are required'
-        });
+    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
     }
 
+    // ✅ Steps definition
     const steps = [
-        {
-            key: "PHARMACY_CLEARANCE",
-            table: "DT_P1_NURSE_STATION",
-            statusColumn: "PHARMACY_CLEARANCE",
-            timeColumn: "PHARMACY_CLEARANCE_TIME",
-            doneValue: [1]
-        },
-        {
-            key: "LAB_CLEARANCE",
-            table: "DT_P1_NURSE_STATION",
-            statusColumn: "LAB_CLEARANCE",
-            timeColumn: "LAB_CLEARANCE_TIME",
-            doneValue: [1]
-        },
-        {
-            key: "CONSUMABLE_CLEARANCE",
-            table: "DT_P1_NURSE_STATION",
-            statusColumn: "CONSUMABLE_CLEARANCE",
-            timeColumn: "CONSUMABLE_CLEARANCE_TIME",
-            doneValue: [1]
-        },
-        {
-            key: "FILE_TRANSFERRED",
-            table: "FACILITY_CHECK_DETAILS",
-            statusColumn: "TKT_STATUS",
-            timeColumn: null,
-            doneValue: [0, 1, 2],
-            facility: true
-        },
-        {
-            key: "PATIENT_CHECKOUT",
-            table: "BED_DETAILS",
-            statusColumn: "STATUS",
-            timeColumn: null,
-            doneValue: [3]
-        }
+        { key: "PHARMACY_CLEARANCE", table: "DT_P1_NURSE_STATION", statusColumn: "PHARMACY_CLEARANCE", timeColumn: "PHARMACY_CLEARANCE_TIME", doneValue: [1] },
+        { key: "LAB_CLEARANCE", table: "DT_P1_NURSE_STATION", statusColumn: "LAB_CLEARANCE", timeColumn: "LAB_CLEARANCE_TIME", doneValue: [1] },
+        { key: "CONSUMABLE_CLEARANCE", table: "DT_P1_NURSE_STATION", statusColumn: "CONSUMABLE_CLEARANCE", timeColumn: "CONSUMABLE_CLEARANCE_TIME", doneValue: [1] },
+        { key: "FILE_TRANSFERRED", table: "FACILITY_CHECK_DETAILS", statusColumn: "TKT_STATUS", timeColumn: null, doneValue: [0,1,2], facility: true },
+        { key: "PATIENT_CHECKOUT", table: "BED_DETAILS", statusColumn: "STATUS", timeColumn: null, doneValue: [3] }
     ];
 
     try {
@@ -913,13 +881,12 @@ aapp.post('/api/getnursingdischargeStatus', async (req, res) => {
         let resultObj = {};
         let nextStep = null;
 
-        for (const step of steps) {
-            const request = pool.request()
+        for (let step of steps) {
+            let query;
+            let request = pool.request()
                 .input('roomno', sql.VarChar, ROOMNO.trim())
                 .input('mrno', sql.VarChar, MRNO.trim())
                 .input('ftid', sql.VarChar, FTID.trim());
-
-            let query;
 
             if (step.facility) {
                 query = `
@@ -928,12 +895,11 @@ aapp.post('/api/getnursingdischargeStatus', async (req, res) => {
                     WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
                       AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                      AND FACILITY_CKD_DEPT = 'SUMMARY'
+                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'SUMMARY'
                 `;
             } else {
                 query = `
-                    SELECT ${step.statusColumn} AS status
-                    ${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
+                    SELECT ${step.statusColumn} AS status${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
                     FROM ${step.table}
                     WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -944,30 +910,33 @@ aapp.post('/api/getnursingdischargeStatus', async (req, res) => {
             const result = await request.query(query);
             const row = result.recordset[0];
 
-            const done = row
-                ? step.doneValue.includes(Number(row.status))
-                : false;
+            let done = false;
+            if (row) {
+                // ✅ Check if doneValue is an array or single number
+                if (Array.isArray(step.doneValue)) {
+                    done = step.doneValue.includes(Number(row.status));
+                } else {
+                    done = Number(row.status) === step.doneValue;
+                }
+            }
 
             resultObj[step.key] = {
                 status: done,
                 time: step.timeColumn && row ? convertToIST(row.time) : null
             };
 
+            // Assign nextStep only for the first pending step
             if (!done && !nextStep) nextStep = step.key;
         }
 
-        resultObj.nextStep = nextStep;
+        resultObj["nextStep"] = nextStep; // only the first pending step
         res.json(resultObj);
 
     } catch (err) {
         console.error("❌ Nursing Status Error:", err);
-        res.status(500).json({
-            message: "Server error",
-            error: err.message
-        });
+        res.status(500).json({ message: "Server error", error: err.message });
     }
 });
-
 
 
 
@@ -1311,143 +1280,140 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
+    console.log("Received workflow update:", { ROOMNO, MRNO, FTID, steps, user });
+
     try {
         const pool = await sql.connect(dbConfig);
 
-        // IST time
-        const now = new Date(Date.now() + 330 * 60000);
+        // IST timestamp
+        const nowUtc = new Date();
+        const ist = new Date(nowUtc.getTime() + 330 * 60000);
+        const formattedTime = ist.toISOString().replace('T', ' ').split('.')[0];
 
-        const updateIfNotDone = async (query, params) => {
-            const request = pool.request();
-            params.forEach(p => request.input(p.name, p.type, p.value));
-            const result = await request.query(query);
-            return result.rowsAffected[0];
-        };
+        // Define functions for each step
+        const stepFunctions = {
 
-        /* ===============================
-           PHARMACY FILE INITIATION
-        =============================== */
-        if (steps.PHARMACY_FILE_INITIATION === true) {
-            await updateIfNotDone(`
-                UPDATE DT_P3_PHARMACY
-                SET PHARMACY_FILE_INITIATION = 1,
-                    PHARMACY_FILE_INITIATION_TIME = @time,
-                    [USER] = @user
-                WHERE ROOMNO = @roomno
-                  AND MRNO = @mrno
-                  AND FTID = @ftid
-                  AND ISNULL(PHARMACY_FILE_INITIATION,0) = 0
-            `, [
-                { name: "time", type: sql.SmallDateTime, value: now },
-                { name: "user", type: sql.VarChar, value: user },
-                { name: "roomno", type: sql.VarChar, value: ROOMNO },
-                { name: "mrno", type: sql.VarChar, value: MRNO },
-                { name: "ftid", type: sql.VarChar, value: FTID }
-            ]);
-        }
-
-        /* ===============================
-           PHARMACY COMPLETED
-        =============================== */
-        if (steps.PHARMACY_COMPLETED === true) {
-            await updateIfNotDone(`
-                UPDATE DT_P3_PHARMACY
-                SET PHARMACY_COMPLETED = 1,
-                    PHARMACY_COMPLETED_TIME = @time,
-                    [USER] = @user
-                WHERE ROOMNO = @roomno
-                  AND MRNO = @mrno
-                  AND FTID = @ftid
-                  AND ISNULL(PHARMACY_COMPLETED,0) = 0
-            `, [
-                { name: "time", type: sql.SmallDateTime, value: now },
-                { name: "user", type: sql.VarChar, value: user },
-                { name: "roomno", type: sql.VarChar, value: ROOMNO },
-                { name: "mrno", type: sql.VarChar, value: MRNO },
-                { name: "ftid", type: sql.VarChar, value: FTID }
-            ]);
-        }
-
-        /* ===============================
-           FILE DISPATCHED (ONE TIME ONLY)
-        =============================== */
-        if (steps.FILE_DISPATCHED === true) {
-            const transaction = new sql.Transaction(pool);
-
-            try {
-                await transaction.begin();
-                const request = new sql.Request(transaction);
-
-                // 1️⃣ Mark file dispatched (only once)
-                const result = await request
-                    .input("time", sql.SmallDateTime, now)
+            PHARMACY_FILE_INITIATION: async () => {
+                await pool.request()
+                    .input("time", sql.VarChar, formattedTime)
                     .input("user", sql.VarChar, user)
                     .input("roomno", sql.VarChar, ROOMNO)
                     .input("mrno", sql.VarChar, MRNO)
                     .input("ftid", sql.VarChar, FTID)
                     .query(`
                         UPDATE DT_P3_PHARMACY
-                        SET FILE_DISPATCHED = 1,
-                            FILE_DISPATCHED_TIME = @time,
+                        SET PHARMACY_FILE_INITIATION = 1,
+                            PHARMACY_FILE_INITIATION_TIME = @time,
                             [USER] = @user
-                        WHERE ROOMNO = @roomno
-                          AND MRNO = @mrno
-                          AND FTID = @ftid
-                          AND ISNULL(FILE_DISPATCHED,0) = 0
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
                     `);
+            },
 
-                // If already dispatched → skip remaining logic
-                if (result.rowsAffected[0] === 0) {
+            PHARMACY_COMPLETED: async () => {
+                await pool.request()
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", sql.VarChar, ROOMNO)
+                    .input("mrno", sql.VarChar, MRNO)
+                    .input("ftid", sql.VarChar, FTID)
+                    .query(`
+                        UPDATE DT_P3_PHARMACY
+                        SET PHARMACY_COMPLETED = 1,
+                            PHARMACY_COMPLETED_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
+                    `);
+            },
+
+            FILE_DISPATCHED: async () => {
+                const transaction = new sql.Transaction(pool);
+                try {
+                    await transaction.begin();
+                    const request = new sql.Request(transaction);
+
+                    // 1️⃣ Mark file dispatched
+                    await request
+                        .input("time", sql.VarChar, formattedTime)
+  .input("user", sql.VarChar, user)
+  .input("roomno", sql.VarChar, ROOMNO)
+  .input("mrno", sql.VarChar, MRNO)
+  .input("ftid", sql.VarChar, FTID)
+  .input("receivedTime", sql.VarChar, formattedTime)
+                        .query(`
+                            UPDATE DT_P3_PHARMACY
+                            SET FILE_DISPATCHED = 1,
+                                FILE_DISPATCHED_TIME = @time,
+                                [USER] = @user
+                            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                              AND RTRIM(LTRIM(MRNO)) = @mrno
+                              AND RTRIM(LTRIM(FTID)) = @ftid
+                        `);
+
+                   // 2️⃣ Close PHARMACY ticket
+await request.query(`
+    UPDATE FACILITY_CHECK_DETAILS
+    SET TKT_STATUS = 2,
+        COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+      AND RTRIM(LTRIM(MRNO)) = @mrno
+      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+      AND FACILITY_CKD_DEPT = 'PHARMACY'
+`);
+
+// 3️⃣ Open BILLING ticket
+await request.query(`
+    UPDATE FACILITY_CHECK_DETAILS
+    SET TKT_STATUS = 0
+    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+      AND RTRIM(LTRIM(MRNO)) = @mrno
+      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+      AND FACILITY_CKD_DEPT = 'BILLING'
+`);
+
+
+                    // 4️⃣ Insert BILLING record if not exists
+                    await request.query(`
+                            IF NOT EXISTS (
+                                SELECT 1
+                                FROM DT_P4_BILLING
+                                WHERE FTID = @ftid
+                                  AND MRNO = @mrno
+                                  AND ROOMNO = @roomno
+                            )
+                            INSERT INTO DT_P4_BILLING
+                                (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+                            VALUES
+                                (@ftid, @mrno, @roomno, @receivedTime)
+                        `);
+
+                    await transaction.commit();
+                    console.log("✔ FILE_DISPATCHED step committed successfully.");
+                } catch (err) {
                     await transaction.rollback();
-                    return res.json({ message: "Already dispatched" });
+                    console.error("❌ FILE_DISPATCHED transaction rollback:", err);
+                    throw err;
                 }
+            }
+        };
 
-                // 2️⃣ Close PHARMACY ticket
-                await request.query(`
-                    UPDATE FACILITY_CHECK_DETAILS
-                    SET TKT_STATUS = 2,
-                        COMPLETED_TIME = GETDATE()
-                    WHERE FACILITY_CKD_ROOMNO = @roomno
-                      AND MRNO = @mrno
-                      AND FACILITY_TID = @ftid
-                      AND FACILITY_CKD_DEPT = 'PHARMACY'
-                `);
-
-                // 3️⃣ Open BILLING ticket
-                await request.query(`
-                    UPDATE FACILITY_CHECK_DETAILS
-                    SET TKT_STATUS = 0
-                    WHERE FACILITY_CKD_ROOMNO = @roomno
-                      AND MRNO = @mrno
-                      AND FACILITY_TID = @ftid
-                      AND FACILITY_CKD_DEPT = 'BILLING'
-                `);
-
-                // 4️⃣ Insert BILLING record once
-                await request.query(`
-                    IF NOT EXISTS (
-                        SELECT 1 FROM DT_P4_BILLING
-                        WHERE FTID = @ftid AND MRNO = @mrno AND ROOMNO = @roomno
-                    )
-                    INSERT INTO DT_P4_BILLING
-                        (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-                    VALUES
-                        (@ftid, @mrno, @roomno, @time)
-                `);
-
-                await transaction.commit();
-            } catch (err) {
-                await transaction.rollback();
-                throw err;
+        // Execute steps in order
+        for (const key of Object.keys(steps)) {
+            if (steps[key] === true && stepFunctions[key]) {
+                console.log(`Executing step: ${key}`);
+                await stepFunctions[key]();
             }
         }
 
         res.json({ message: "PHARMACY workflow updated successfully" });
 
     } catch (err) {
-        console.error("❌ WORKFLOW ERROR:", err);
+        console.error("❌ PHARMACY WORKFLOW ERROR:", err.stack);
         res.status(500).json({
-            message: "Server error",
+            message: "Server Error",
             error: err.message
         });
     }
