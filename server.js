@@ -1210,7 +1210,7 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
             table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION",
             statusColumn: "DOCTOR_AUTHORIZATION",
             timeColumn: "DOCTOR_AUTHORIZATION_TIME",
-            type: "facility"
+            type: "doctor"
         },
         {
             key: "PHARMACY_FILE_INITIATION",
@@ -1244,8 +1244,8 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
                 .input('mrno', sql.VarChar, MRNO.trim())
                 .input('ftid', sql.VarChar, FTID.trim());
 
-            // ✅ Doctor Authorization (Facility table)
-            if (step.type === "facility") {
+            // ✅ Doctor Authorization (NO DEPT FILTER)
+            if (step.type === "doctor") {
                 query = `
                     SELECT ${step.statusColumn} AS status,
                            ${step.timeColumn} AS time
@@ -1253,10 +1253,9 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
                     WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
                       AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
                 `;
             }
-            // ✅ Pharmacy tables
+            // ✅ Pharmacy
             else {
                 query = `
                     SELECT ${step.statusColumn} AS status,
