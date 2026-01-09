@@ -1338,10 +1338,11 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
                     // 1️⃣ Mark file dispatched
                     await request
                         .input("time", sql.VarChar, formattedTime)
-                        .input("user", sql.VarChar, user)
-                        .input("roomno", sql.VarChar, ROOMNO)
-                        .input("mrno", sql.VarChar, MRNO)
-                        .input("ftid", sql.VarChar, FTID)
+  .input("user", sql.VarChar, user)
+  .input("roomno", sql.VarChar, ROOMNO)
+  .input("mrno", sql.VarChar, MRNO)
+  .input("ftid", sql.VarChar, FTID)
+  .input("receivedTime", sql.VarChar, formattedTime)
                         .query(`
                             UPDATE DT_P3_PHARMACY
                             SET FILE_DISPATCHED = 1,
@@ -1375,12 +1376,7 @@ await request.query(`
 
 
                     // 4️⃣ Insert BILLING record if not exists
-                    await request
-                        .input("ftid", sql.VarChar, FTID)
-                        .input("mrno", sql.VarChar, MRNO)
-                        .input("roomno", sql.VarChar, ROOMNO)
-                        .input("receivedTime", sql.VarChar, formattedTime)
-                        .query(`
+                    await request.query(`
                             IF NOT EXISTS (
                                 SELECT 1
                                 FROM DT_P4_BILLING
