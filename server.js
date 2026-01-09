@@ -1210,7 +1210,6 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
             table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION",
             statusColumn: "DOCTOR_AUTHORIZATION",
             timeColumn: "DOCTOR_AUTHORIZATION_TIME",
-            type: "doctor"
         },
         {
             key: "PHARMACY_FILE_INITIATION",
@@ -1238,43 +1237,25 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
         let nextStep = null;
 
         for (let step of steps) {
-            let query;
-            let request = pool.request()
+            const result = await pool.request()
                 .input('roomno', sql.VarChar, ROOMNO.trim())
                 .input('mrno', sql.VarChar, MRNO.trim())
-                .input('ftid', sql.VarChar, FTID.trim());
-
-            // ✅ Doctor Authorization (NO DEPT FILTER)
-            if (step.type === "doctor") {
-                query = `
-                    SELECT ${step.statusColumn} AS status,
-                           ${step.timeColumn} AS time
-                    FROM ${step.table}
-                    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-                      AND RTRIM(LTRIM(MRNO)) = @mrno
-                      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                `;
-            }
-            // ✅ Pharmacy
-            else {
-                query = `
+                .input('ftid', sql.VarChar, FTID.trim())
+                .query(`
                     SELECT ${step.statusColumn} AS status,
                            ${step.timeColumn} AS time
                     FROM ${step.table}
                     WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
                       AND RTRIM(LTRIM(FTID)) = @ftid
-                `;
-            }
+                `);
 
-            const result = await request.query(query);
             const row = result.recordset[0];
-
             const done = row ? Number(row.status) === 1 : false;
 
             resultObj[step.key] = {
                 status: done,
-                time: row?.time ? convertToIST(row.time) : null
+                time: row?.time ?? null
             };
 
             if (!done && !nextStep) nextStep = step.key;
@@ -1288,6 +1269,7 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
+
 
 
 
