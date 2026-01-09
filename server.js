@@ -1198,20 +1198,38 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
 ///////////////////////PHARMACY DEPARTMENT START/////////////////////////////////////////////
 
 app.post('/api/getpharmacydischargeStatus', async (req, res) => {
-    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
+    const { ROOMNO, MRNO, FTID } = req.body;
 
-    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
-        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
+    if (!ROOMNO || !MRNO || !FTID) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO & FTID are required' });
     }
 
-    // ✅ Steps definition
     const steps = [
-        { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
-        { key: "PHARMACY_FILE_INITIATION", table: "DT_P3_PHARMACY", statusColumn: "PHARMACY_FILE_INITIATION", timeColumn: "PHARMACY_FILE_INITIATION_TIME", doneValue: [1] },
-        { key: "PHARMACY_COMPLETED", table: "DT_P3_PHARMACY", statusColumn: "PHARMACY_COMPLETED", timeColumn: "PHARMACY_COMPLETED_TIME", doneValue: [1] },
-        { key: "FILE_DISPATCHED", table: "DT_P3_PHARMACY", statusColumn: "FILE_DISPATCHED", timeColumn: "FILE_DISPATCHED_TIME", doneValue: [1] },
-       
-        
+        {
+            key: "DOCTOR_AUTHORIZATION",
+            table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION",
+            statusColumn: "DOCTOR_AUTHORIZATION",
+            timeColumn: "DOCTOR_AUTHORIZATION_TIME",
+            type: "facility"
+        },
+        {
+            key: "PHARMACY_FILE_INITIATION",
+            table: "DT_P3_PHARMACY",
+            statusColumn: "PHARMACY_FILE_INITIATION",
+            timeColumn: "PHARMACY_FILE_INITIATION_TIME",
+        },
+        {
+            key: "PHARMACY_COMPLETED",
+            table: "DT_P3_PHARMACY",
+            statusColumn: "PHARMACY_COMPLETED",
+            timeColumn: "PHARMACY_COMPLETED_TIME",
+        },
+        {
+            key: "FILE_DISPATCHED",
+            table: "DT_P3_PHARMACY",
+            statusColumn: "FILE_DISPATCHED",
+            timeColumn: "FILE_DISPATCHED_TIME",
+        }
     ];
 
     try {
@@ -1226,18 +1244,23 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
                 .input('mrno', sql.VarChar, MRNO.trim())
                 .input('ftid', sql.VarChar, FTID.trim());
 
-            if (step.facility) {
+            // ✅ Doctor Authorization (Facility table)
+            if (step.type === "facility") {
                 query = `
-                    SELECT ${step.statusColumn} AS status
+                    SELECT ${step.statusColumn} AS status,
+                           ${step.timeColumn} AS time
                     FROM ${step.table}
                     WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
                       AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
                       AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
                 `;
-            } else {
+            }
+            // ✅ Pharmacy tables
+            else {
                 query = `
-                    SELECT ${step.statusColumn} AS status${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
+                    SELECT ${step.statusColumn} AS status,
+                           ${step.timeColumn} AS time
                     FROM ${step.table}
                     WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -1248,30 +1271,21 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
             const result = await request.query(query);
             const row = result.recordset[0];
 
-            let done = false;
-            if (row) {
-                // ✅ Check if doneValue is an array or single number
-                if (Array.isArray(step.doneValue)) {
-                    done = step.doneValue.includes(Number(row.status));
-                } else {
-                    done = Number(row.status) === step.doneValue;
-                }
-            }
+            const done = row ? Number(row.status) === 1 : false;
 
             resultObj[step.key] = {
                 status: done,
-                time: step.timeColumn && row ? convertToIST(row.time) : null
+                time: row?.time ? convertToIST(row.time) : null
             };
 
-            // Assign nextStep only for the first pending step
             if (!done && !nextStep) nextStep = step.key;
         }
 
-        resultObj["nextStep"] = nextStep; // only the first pending step
+        resultObj.nextStep = nextStep;
         res.json(resultObj);
 
     } catch (err) {
-        console.error("❌ Summary Status Error:", err);
+        console.error("❌ Pharmacy Status Error:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
