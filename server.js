@@ -1280,140 +1280,143 @@ app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
         return res.status(400).json({ message: "Missing required fields" });
     }
 
-    console.log("Received workflow update:", { ROOMNO, MRNO, FTID, steps, user });
-
     try {
         const pool = await sql.connect(dbConfig);
 
-        // IST timestamp
-        const nowUtc = new Date();
-        const ist = new Date(nowUtc.getTime() + 330 * 60000);
-        const formattedTime = ist.toISOString().replace('T', ' ').split('.')[0];
+        // IST time
+        const now = new Date(Date.now() + 330 * 60000);
 
-        // Define functions for each step
-        const stepFunctions = {
-
-            PHARMACY_FILE_INITIATION: async () => {
-                await pool.request()
-                    .input("time", sql.VarChar, formattedTime)
-                    .input("user", sql.VarChar, user)
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
-                        UPDATE DT_P3_PHARMACY
-                        SET PHARMACY_FILE_INITIATION = 1,
-                            PHARMACY_FILE_INITIATION_TIME = @time,
-                            [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                          AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FTID)) = @ftid
-                    `);
-            },
-
-            PHARMACY_COMPLETED: async () => {
-                await pool.request()
-                    .input("time", sql.VarChar, formattedTime)
-                    .input("user", sql.VarChar, user)
-                    .input("roomno", sql.VarChar, ROOMNO)
-                    .input("mrno", sql.VarChar, MRNO)
-                    .input("ftid", sql.VarChar, FTID)
-                    .query(`
-                        UPDATE DT_P3_PHARMACY
-                        SET PHARMACY_COMPLETED = 1,
-                            PHARMACY_COMPLETED_TIME = @time,
-                            [USER] = @user
-                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                          AND RTRIM(LTRIM(MRNO)) = @mrno
-                          AND RTRIM(LTRIM(FTID)) = @ftid
-                    `);
-            },
-
-            FILE_DISPATCHED: async () => {
-                const transaction = new sql.Transaction(pool);
-                try {
-                    await transaction.begin();
-                    const request = new sql.Request(transaction);
-
-                    // 1️⃣ Mark file dispatched
-                    await request
-                        .input("time", sql.VarChar, formattedTime)
-  .input("user", sql.VarChar, user)
-  .input("roomno", sql.VarChar, ROOMNO)
-  .input("mrno", sql.VarChar, MRNO)
-  .input("ftid", sql.VarChar, FTID)
-  .input("receivedTime", sql.VarChar, formattedTime)
-                        .query(`
-                            UPDATE DT_P3_PHARMACY
-                            SET FILE_DISPATCHED = 1,
-                                FILE_DISPATCHED_TIME = @time,
-                                [USER] = @user
-                            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                              AND RTRIM(LTRIM(MRNO)) = @mrno
-                              AND RTRIM(LTRIM(FTID)) = @ftid
-                        `);
-
-                   // 2️⃣ Close PHARMACY ticket
-await request.query(`
-    UPDATE FACILITY_CHECK_DETAILS
-    SET TKT_STATUS = 2,
-        COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-      AND RTRIM(LTRIM(MRNO)) = @mrno
-      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-      AND FACILITY_CKD_DEPT = 'PHARMACY'
-`);
-
-// 3️⃣ Open BILLING ticket
-await request.query(`
-    UPDATE FACILITY_CHECK_DETAILS
-    SET TKT_STATUS = 0
-    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-      AND RTRIM(LTRIM(MRNO)) = @mrno
-      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-      AND FACILITY_CKD_DEPT = 'BILLING'
-`);
-
-
-                    // 4️⃣ Insert BILLING record if not exists
-                    await request.query(`
-                            IF NOT EXISTS (
-                                SELECT 1
-                                FROM DT_P4_BILLING
-                                WHERE FTID = @ftid
-                                  AND MRNO = @mrno
-                                  AND ROOMNO = @roomno
-                            )
-                            INSERT INTO DT_P4_BILLING
-                                (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-                            VALUES
-                                (@ftid, @mrno, @roomno, @receivedTime)
-                        `);
-
-                    await transaction.commit();
-                    console.log("✔ FILE_DISPATCHED step committed successfully.");
-                } catch (err) {
-                    await transaction.rollback();
-                    console.error("❌ FILE_DISPATCHED transaction rollback:", err);
-                    throw err;
-                }
-            }
+        const updateIfNotDone = async (query, params) => {
+            const request = pool.request();
+            params.forEach(p => request.input(p.name, p.type, p.value));
+            const result = await request.query(query);
+            return result.rowsAffected[0];
         };
 
-        // Execute steps in order
-        for (const key of Object.keys(steps)) {
-            if (steps[key] === true && stepFunctions[key]) {
-                console.log(`Executing step: ${key}`);
-                await stepFunctions[key]();
+        /* ===============================
+           PHARMACY FILE INITIATION
+        =============================== */
+        if (steps.PHARMACY_FILE_INITIATION === true) {
+            await updateIfNotDone(`
+                UPDATE DT_P3_PHARMACY
+                SET PHARMACY_FILE_INITIATION = 1,
+                    PHARMACY_FILE_INITIATION_TIME = @time,
+                    [USER] = @user
+                WHERE ROOMNO = @roomno
+                  AND MRNO = @mrno
+                  AND FTID = @ftid
+                  AND ISNULL(PHARMACY_FILE_INITIATION,0) = 0
+            `, [
+                { name: "time", type: sql.SmallDateTime, value: now },
+                { name: "user", type: sql.VarChar, value: user },
+                { name: "roomno", type: sql.VarChar, value: ROOMNO },
+                { name: "mrno", type: sql.VarChar, value: MRNO },
+                { name: "ftid", type: sql.VarChar, value: FTID }
+            ]);
+        }
+
+        /* ===============================
+           PHARMACY COMPLETED
+        =============================== */
+        if (steps.PHARMACY_COMPLETED === true) {
+            await updateIfNotDone(`
+                UPDATE DT_P3_PHARMACY
+                SET PHARMACY_COMPLETED = 1,
+                    PHARMACY_COMPLETED_TIME = @time,
+                    [USER] = @user
+                WHERE ROOMNO = @roomno
+                  AND MRNO = @mrno
+                  AND FTID = @ftid
+                  AND ISNULL(PHARMACY_COMPLETED,0) = 0
+            `, [
+                { name: "time", type: sql.SmallDateTime, value: now },
+                { name: "user", type: sql.VarChar, value: user },
+                { name: "roomno", type: sql.VarChar, value: ROOMNO },
+                { name: "mrno", type: sql.VarChar, value: MRNO },
+                { name: "ftid", type: sql.VarChar, value: FTID }
+            ]);
+        }
+
+        /* ===============================
+           FILE DISPATCHED (ONE TIME ONLY)
+        =============================== */
+        if (steps.FILE_DISPATCHED === true) {
+            const transaction = new sql.Transaction(pool);
+
+            try {
+                await transaction.begin();
+                const request = new sql.Request(transaction);
+
+                // 1️⃣ Mark file dispatched (only once)
+                const result = await request
+                    .input("time", sql.SmallDateTime, now)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", sql.VarChar, ROOMNO)
+                    .input("mrno", sql.VarChar, MRNO)
+                    .input("ftid", sql.VarChar, FTID)
+                    .query(`
+                        UPDATE DT_P3_PHARMACY
+                        SET FILE_DISPATCHED = 1,
+                            FILE_DISPATCHED_TIME = @time,
+                            [USER] = @user
+                        WHERE ROOMNO = @roomno
+                          AND MRNO = @mrno
+                          AND FTID = @ftid
+                          AND ISNULL(FILE_DISPATCHED,0) = 0
+                    `);
+
+                // If already dispatched → skip remaining logic
+                if (result.rowsAffected[0] === 0) {
+                    await transaction.rollback();
+                    return res.json({ message: "Already dispatched" });
+                }
+
+                // 2️⃣ Close PHARMACY ticket
+                await request.query(`
+                    UPDATE FACILITY_CHECK_DETAILS
+                    SET TKT_STATUS = 2,
+                        COMPLETED_TIME = GETDATE()
+                    WHERE FACILITY_CKD_ROOMNO = @roomno
+                      AND MRNO = @mrno
+                      AND FACILITY_TID = @ftid
+                      AND FACILITY_CKD_DEPT = 'PHARMACY'
+                `);
+
+                // 3️⃣ Open BILLING ticket
+                await request.query(`
+                    UPDATE FACILITY_CHECK_DETAILS
+                    SET TKT_STATUS = 0
+                    WHERE FACILITY_CKD_ROOMNO = @roomno
+                      AND MRNO = @mrno
+                      AND FACILITY_TID = @ftid
+                      AND FACILITY_CKD_DEPT = 'BILLING'
+                `);
+
+                // 4️⃣ Insert BILLING record once
+                await request.query(`
+                    IF NOT EXISTS (
+                        SELECT 1 FROM DT_P4_BILLING
+                        WHERE FTID = @ftid AND MRNO = @mrno AND ROOMNO = @roomno
+                    )
+                    INSERT INTO DT_P4_BILLING
+                        (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+                    VALUES
+                        (@ftid, @mrno, @roomno, @time)
+                `);
+
+                await transaction.commit();
+            } catch (err) {
+                await transaction.rollback();
+                throw err;
             }
         }
 
         res.json({ message: "PHARMACY workflow updated successfully" });
 
     } catch (err) {
-        console.error("❌ PHARMACY WORKFLOW ERROR:", err.stack);
+        console.error("❌ WORKFLOW ERROR:", err);
         res.status(500).json({
-            message: "Server Error",
+            message: "Server error",
             error: err.message
         });
     }
