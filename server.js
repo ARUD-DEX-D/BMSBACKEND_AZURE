@@ -1825,7 +1825,7 @@ app.post('/api/UPDATE_SUMMARYAUTHORIZE_WORKFLOW', async (req, res) => {
             .input("mrno", MRNO)
             .input("ftid", FTID)
             .query(`
-                UPDATE DT_P4_BILLING
+                UPDATE DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION
                 SET DOCTOR_AUTHORIZATION = @value,
                     DOCTOR_AUTHORIZATION_TIME = @time,
                     [USER] = @user
@@ -1905,10 +1905,10 @@ app.post('/api/UPDATE_SUMMARYAUTHORIZE_WORKFLOW', async (req, res) => {
             }
         }
 
-        res.json({ message: "Billing workflow updated successfully" });
+        res.json({ message: "Summary workflow updated successfully" });
 
     } catch (err) {
-        console.error("❌ BILLING WORKFLOW ERROR:", err);
+        console.error("❌ SUMMARY WORKFLOW ERROR:", err);
         res.status(500).json({ message: "Server Error", error: err.message });
     }
 });
