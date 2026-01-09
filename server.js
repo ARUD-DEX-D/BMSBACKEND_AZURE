@@ -1710,7 +1710,145 @@ app.post('/api/UPDATE_SUMMARY_WORKFLOW', async (req, res) => {
 });
 
 
+
+
+
+
+
+
+app.post('/api/getsummaryauthorizeStatus', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
+
+    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
+    }
+
+    // ✅ Steps definition
+    const steps = [
+        { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
+        { key: "PREPARE_SUMMARY_DRAFT", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "PREPARE_SUMMARY_DRAFT", timeColumn: "PREPARE_SUMMARY_DRAFT_TIME", doneValue: [1] },
+        { key: "FILE_DISPATCHED", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "FILE_DISPATCHED", timeColumn: "FILE_DISPATCHED_TIME", doneValue: [1] },
+        
+    ];
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        let resultObj = {};
+        let nextStep = null;
+
+        for (let step of steps) {
+            let query;
+            let request = pool.request()
+                .input('roomno', sql.VarChar, ROOMNO.trim())
+                .input('mrno', sql.VarChar, MRNO.trim())
+                .input('ftid', sql.VarChar, FTID.trim());
+
+            if (step.facility) {
+                query = `
+                    SELECT ${step.statusColumn} AS status
+                    FROM ${step.table}
+                    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                      AND RTRIM(LTRIM(MRNO)) = @mrno
+                      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'PHARMACY'
+                `;
+            } else {
+                query = `
+                    SELECT ${step.statusColumn} AS status${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
+                    FROM ${step.table}
+                    WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                      AND RTRIM(LTRIM(MRNO)) = @mrno
+                      AND RTRIM(LTRIM(FTID)) = @ftid
+                `;
+            }
+
+            const result = await request.query(query);
+            const row = result.recordset[0];
+
+            let done = false;
+            if (row) {
+                // ✅ Check if doneValue is an array or single number
+                if (Array.isArray(step.doneValue)) {
+                    done = step.doneValue.includes(Number(row.status));
+                } else {
+                    done = Number(row.status) === step.doneValue;
+                }
+            }
+
+            resultObj[step.key] = {
+                status: done,
+                time: step.timeColumn && row ? convertToIST(row.time) : null
+            };
+
+            // Assign nextStep only for the first pending step
+            if (!done && !nextStep) nextStep = step.key;
+        }
+
+        resultObj["nextStep"] = nextStep; // only the first pending step
+        res.json(resultObj);
+
+    } catch (err) {
+        console.error("❌ Summary Status Error:", err);
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ///////////////////////END SUMMARY DEPARTMENT/////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ///////////////////////START BILLING DEPARTMENT/////////////////////////////////////////////
