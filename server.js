@@ -1195,41 +1195,23 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
 
 
 
-///////////////////////PHARMACY DEPARTMENT/////////////////////////////////////////////
-
-
-
-
-
-// API for FETCH D-TRACKER PHARMACY TASK STATUS ===========================================
-//==============START===================================================================//
-
-
-function convertToIST(dateValue) {
-    if (!dateValue) return null;
-    const date = new Date(dateValue); // stored UTC
-    const istOffset = 5.5 * 60; // minutes
-    const istDate = new Date(date.getTime() + istOffset * 60 * 1000);
-
-    return istDate.getDate().toString().padStart(2,'0') + '-' +
-           (istDate.getMonth()+1).toString().padStart(2,'0') + '-' +
-           istDate.getFullYear() + ' ' +
-           istDate.getHours().toString().padStart(2,'0') + ':' +
-           istDate.getMinutes().toString().padStart(2,'0') + ':' +
-           istDate.getSeconds().toString().padStart(2,'0');
-}
+///////////////////////PHARMACY DEPARTMENT START/////////////////////////////////////////////
 
 app.post('/api/getpharmacydischargeStatus', async (req, res) => {
-    const { ROOMNO, MRNO, FTID } = req.body;
-    if (!ROOMNO || !MRNO || !FTID) 
-        return res.status(400).json({ message: 'ROOMNO, MRNO, and FTID are required' });
+    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
 
+    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
+        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
+    }
+
+    // ✅ Steps definition
     const steps = [
-        { key: "FILE_SIGNIN", table: "DT_P3_PHARMACY", statusColumn: "FILE_SIGNIN", timeColumn: "FILE_SIGNIN_TIME", statusValue: 1 },
-        { key: "PHARMACY_FILE_INITIATION", table: "DT_P3_PHARMACY", statusColumn: "PHARMACY_FILE_INITIATION", timeColumn: "PHARMACY_FILE_INITIATION_TIME", statusValue: 1 },
-        { key: "PHARMACY_COMPLETED", table: "DT_P3_PHARMACY", statusColumn: "PHARMACY_COMPLETED", timeColumn: "PHARMACY_COMPLETED_TIME", statusValue: 1 },
-        { key: "FILE_DISPATCHED", table: "DT_P3_PHARMACY", statusColumn: "FILE_DISPATCHED", timeColumn: "FILE_DISPATCHED_TIME", statusValue: 1 }
-         
+        { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
+        { key: "PHARMACY_FILE_INITIATION", table: "DT_P3_PHARMACY", statusColumn: "PHARMACY_FILE_INITIATION", timeColumn: "PHARMACY_FILE_INITIATION_TIME", doneValue: [1] },
+        { key: "PHARMACY_COMPLETED", table: "DT_P3_PHARMACY", statusColumn: "PHARMACY_COMPLETED", timeColumn: "PHARMACY_COMPLETED_TIME", doneValue: [1] },
+        { key: "FILE_DISPATCHED", table: "DT_P3_PHARMACY", statusColumn: "FILE_DISPATCHED", timeColumn: "FILE_DISPATCHED_TIME", doneValue: [1] },
+       
+        
     ];
 
     try {
@@ -1238,235 +1220,215 @@ app.post('/api/getpharmacydischargeStatus', async (req, res) => {
         let nextStep = null;
 
         for (let step of steps) {
-            const query = `
-                SELECT ${step.statusColumn} AS status, ${step.timeColumn} AS time
-                FROM ${step.table}
-                WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                  AND RTRIM(LTRIM(MRNO)) = @mrno
-                  AND RTRIM(LTRIM(FTID)) = @ftid
-            `;
-
-            const request = pool.request()
+            let query;
+            let request = pool.request()
                 .input('roomno', sql.VarChar, ROOMNO.trim())
                 .input('mrno', sql.VarChar, MRNO.trim())
                 .input('ftid', sql.VarChar, FTID.trim());
 
-            const result = await request.query(query);
-
-            if (result.recordset.length > 0) {
-                const row = result.recordset[0];
-                const status = Number(row.status) === step.statusValue;
-                resultObj[step.key] = {
-                    status,
-                    time: convertToIST(row.time)
-                };
-
-                // If not completed and nextStep not assigned yet
-                if (!status && !nextStep) {
-                    nextStep = step.key;
-                }
+            if (step.facility) {
+                query = `
+                    SELECT ${step.statusColumn} AS status
+                    FROM ${step.table}
+                    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                      AND RTRIM(LTRIM(MRNO)) = @mrno
+                      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'DOCTOR_AUTHORIZATION'
+                `;
             } else {
-                resultObj[step.key] = { status: false, time: null };
-                if (!nextStep) nextStep = step.key;
+                query = `
+                    SELECT ${step.statusColumn} AS status${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
+                    FROM ${step.table}
+                    WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                      AND RTRIM(LTRIM(MRNO)) = @mrno
+                      AND RTRIM(LTRIM(FTID)) = @ftid
+                `;
             }
+
+            const result = await request.query(query);
+            const row = result.recordset[0];
+
+            let done = false;
+            if (row) {
+                // ✅ Check if doneValue is an array or single number
+                if (Array.isArray(step.doneValue)) {
+                    done = step.doneValue.includes(Number(row.status));
+                } else {
+                    done = Number(row.status) === step.doneValue;
+                }
+            }
+
+            resultObj[step.key] = {
+                status: done,
+                time: step.timeColumn && row ? convertToIST(row.time) : null
+            };
+
+            // Assign nextStep only for the first pending step
+            if (!done && !nextStep) nextStep = step.key;
         }
 
-        // Include next pending step
-        resultObj["nextStep"] = nextStep;
-
+        resultObj["nextStep"] = nextStep; // only the first pending step
         res.json(resultObj);
 
     } catch (err) {
-        console.error("❌ Pharmacy Status Error:", err);
+        console.error("❌ Summary Status Error:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
 
 
-// API for FETCH D-TRACKER PHARMACY TASK STATUS ===========================================
-//========================END=============================================================//
 
+app.post('/api/UPDATE_PHARMACY_WORKFLOW', async (req, res) => {
+    const { ROOMNO, MRNO, FTID, steps, user } = req.body;
 
-
-
-//=========UPDATE D-TRACKER PHARMACY TASK ==============================================
-//==============START===================================================================//
-app.post('/api/UPDATE_DTRACK_PHARMACYSTEP', async (req, res) => {
-    const { table, column, roomno, mrno, ftid, value, time, user } = req.body;
-
-    if (!table || !column || !roomno || !mrno || !ftid) {
-        return res.status(400).json({ message: 'Missing required fields' });
+    if (!ROOMNO || !MRNO || !FTID || !steps) {
+        return res.status(400).json({ message: "Missing required fields" });
     }
 
     try {
         const pool = await sql.connect(dbConfig);
-
-        const query = `
-            UPDATE ${table}
-            SET ${column} = @value,
-                ${column}_TIME = @time,
-                [USER] = @user
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
-        `;
-
-        const request = pool.request()
-            .input('value', sql.Int, value)
-            .input('time', sql.VarChar, time)
-            .input('user', sql.VarChar, user ?? 'SYSTEM')
-            .input('roomno', sql.VarChar, roomno.trim())
-            .input('mrno', sql.VarChar, mrno.trim())
-            .input('ftid', sql.VarChar, ftid.trim());
-
-        await request.query(query);
-
-        res.status(200).json({ message: "Step updated successfully", time });
-
-    } catch (err) {
-        console.log("❌ Update Pharmacy Step Error:", err);
-        res.status(500).json({ message: "Server error", error: err.message });
-    }
-});
-
-//=========UPDATE D-TRACKER PHARMACY TASK ============================================
-//==============END===================================================================
-
-
-
-
-
-
-//========= UPDATE_BED_DETAILS_PHARMACY_TASK FOR SHOWING IN DASHBOARD =====================
-//==============START===================================================================//
-
-app.post('/api/UPDATE_BED_DETAILS_PHARMACY_TASK', async (req, res) => {
-    const { ROOMNO, MRNO, FTID } = req.body;
-
-    if (!ROOMNO || !MRNO || !FTID) {
-        return res.status(400).json({ message: "ROOMNO, MRNO, FTID are required" });
-    }
-
-    try {
-        const pool = await sql.connect(dbConfig);
-
-        const query = `
-            UPDATE BED_DETAILS 
-            SET PHARMACY = 1
-            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
-        `;
-
-        await pool.request()
-            .input("roomno", sql.VarChar, ROOMNO.trim())
-            .input("mrno", sql.VarChar, MRNO.trim())
-            .input("ftid", sql.VarChar, FTID.trim())
-            .query(query);
-
-        res.json({ message: "BED_DETAILS updated successfully" });
-
-    } catch (err) {
-        console.error("❌ BED_DETAILS Update Error:", err);
-        res.status(500).json({ message: "Server Error", error: err.message });
-    }
-});
-
-//========= UPDATE_BED_DETAILS_PHARMACY_TASK FOR SHOWING IN DASHBOARD =====================
-//==============END===================================================================//
-
-
-
-
-
-
-
-//========= CLOSE PHARMACY TICKET IN FACILITY_CHECK_DETAILS TABLE =====================
-//==============START===================================================================//
-
-app.post('/api/CLOSE_PHARMACY_TICKET', async (req, res) => {
-    const { ROOMNO, MRNO, FTID, DEPARTMENT } = req.body;
-
-    if (!ROOMNO || !MRNO || !FTID || !DEPARTMENT) {
-        return res.status(400).json({ message: "ROOMNO, MRNO, FTID & DEPARTMENT are required" });
-    }
-
-    try {
-        const pool = await sql.connect(dbConfig);
-        const transaction = new sql.Transaction(pool);
-
-        await transaction.begin();
-
-        const request = new sql.Request(transaction);
 
         // IST timestamp
-        const now = new Date();
-        now.setHours(now.getHours() + 5, now.getMinutes() + 30);
+        const nowUtc = new Date();
+        const ist = new Date(nowUtc.getTime() + 330 * 60000);
+        const formattedTime = ist.toISOString().replace('T', ' ').split('.')[0];
 
-        // 1️⃣ Check if ticket exists
-        const checkQuery = `
-            SELECT COUNT(*) AS count
-            FROM FACILITY_CHECK_DETAILS
-            WHERE ROOMNO = @roomno
-              AND MRNO = @mrno
-              AND FACILITY_TID = @ftid
-              AND FACILITY_CKD_DEPT = @department
-        `;
+        const stepFunctions = {
 
-        const checkResult = await request
-            .input("roomno", sql.VarChar, ROOMNO.trim())
-            .input("mrno", sql.VarChar, MRNO.trim())
-            .input("ftid", sql.VarChar, FTID.trim())
-            .input("department", sql.VarChar, DEPARTMENT.trim())
-            .query(checkQuery);
+         
 
-        if (checkResult.recordset[0].count === 0) {
-            await transaction.rollback();
-            return res.status(404).json({ message: "Ticket not found for the given ROOMNO/MRNO/FTID/DEPARTMENT" });
+            PHARMACY_FILE_INITIATION: async () => {
+                await pool.request()
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", sql.VarChar, ROOMNO)
+                    .input("mrno", sql.VarChar, MRNO)
+                    .input("ftid", sql.VarChar, FTID)
+                    .query(`
+                        UPDATE DT_P3_PHARMACY
+                        SET PHARMACY_FILE_INITIATION = 1,
+                            PHARMACY_FILE_INITIATION_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
+                    `);
+            },
+
+            PHARMACY_COMPLETED: async () => {
+                await pool.request()
+                    .input("time", sql.VarChar, formattedTime)
+                    .input("user", sql.VarChar, user)
+                    .input("roomno", sql.VarChar, ROOMNO)
+                    .input("mrno", sql.VarChar, MRNO)
+                    .input("ftid", sql.VarChar, FTID)
+                    .query(`
+                        UPDATE DT_P3_PHARMACY
+                        SET PHARMACY_COMPLETED = 1,
+                            PHARMACY_COMPLETED_TIME = @time,
+                            [USER] = @user
+                        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FTID)) = @ftid
+                    `);
+            },
+
+            
+
+            FILE_DISPATCHED: async () => {
+
+                const transaction = new sql.Transaction(pool);
+
+                try {
+                    await transaction.begin();
+                    const request = new sql.Request(transaction);
+
+                    // 1️⃣ Mark file dispatched
+                    await request
+                        .input("time", sql.VarChar, formattedTime)
+                        .input("user", sql.VarChar, user)
+                        .input("roomno", sql.VarChar, ROOMNO)
+                        .input("mrno", sql.VarChar, MRNO)
+                        .input("ftid", sql.VarChar, FTID)
+                        .query(`
+                            UPDATE DT_P3_PHARMACY
+                            SET FILE_DISPATCHED = 1,
+                                FILE_DISPATCHED_TIME = @time,
+                                [USER] = @user
+                            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+                              AND RTRIM(LTRIM(MRNO)) = @mrno
+                              AND RTRIM(LTRIM(FTID)) = @ftid
+                        `);
+
+                    // 2️⃣ Close PHARMACY ticket
+                    await request.query(`
+                        UPDATE FACILITY_CHECK_DETAILS
+                        SET TKT_STATUS = 2,
+                            COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                          AND FACILITY_CKD_DEPT = 'PHARMACY'
+                    `);
+
+                    // 3️⃣ Open BILLING ticket
+                    await request.query(`
+                        UPDATE FACILITY_CHECK_DETAILS
+                        SET TKT_STATUS = 0
+                        WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+                          AND RTRIM(LTRIM(MRNO)) = @mrno
+                          AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+                          AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'BILLING'
+                    `);
+
+                    // 4️⃣ Insert BILLING record
+                    await request
+                        .input("receivedTime", sql.VarChar, formattedTime)
+                        .query(`
+                            IF NOT EXISTS (
+                                SELECT 1
+                                FROM DT_P4_BILLING
+                                WHERE FTID = @ftid
+                                  AND MRNO = @mrno
+                                  AND ROOMNO = @roomno
+                            )
+                            INSERT INTO DT_P4_BILLING
+                                (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+                            VALUES
+                                (@ftid, @mrno, @roomno, @receivedTime)
+                        `);
+
+                    await transaction.commit();
+
+                } catch (err) {
+                    await transaction.rollback();
+                    throw err;
+                }
+            }
+        };
+
+        // Execute selected steps
+        for (const key of Object.keys(steps)) {
+            if (steps[key] === true && stepFunctions[key]) {
+                await stepFunctions[key]();
+            }
         }
 
-        // 2️⃣ Close the ticket
-        const closeQuery = `
-            UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 2,
-                COMPLETED_TIME = @now
-            WHERE ROOMNO = @roomno
-              AND MRNO = @mrno
-              AND FACILITY_TID = @ftid
-              AND FACILITY_CKD_DEPT = @department
-        `;
-
-        await request.query(closeQuery);
-
-        // 3️⃣ Insert into billing/insurance
-        const insertQuery = `
-            INSERT INTO DT_P4_BILLING
-            (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-            VALUES (@ftid, @mrno, @roomno, @now)
-        `;
-
-        await request.query(insertQuery);
-
-        await transaction.commit();
-
-        res.json({ message: "Ticket closed and inserted into billing successfully" });
+        res.json({ message: "PHARMACY workflow updated successfully" });
 
     } catch (err) {
-        console.error("❌ Close Pharmacy Ticket Error:", err);
-        try { await transaction.rollback(); } catch (_) {}
-        res.status(500).json({ message: "Server error", error: err.message });
+        console.error("❌ PHARMACY WORKFLOW ERROR:", err);
+        res.status(500).json({
+            message: "Server Error",
+            error: err.message
+        });
     }
 });
 
 
 
 
-//========= CLOSE PHARMACY TICKET IN FACILITY_CHECK_DETAILS TABLE =====================
-//==============END===================================================================//
-
-
-
-///////////////////////PHARMACY DEPARTMENT/////////////////////////////////////////////
+///////////////////////PHARMACY DEPARTMENT END/////////////////////////////////////////////
 
 
 
