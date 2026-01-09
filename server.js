@@ -1883,6 +1883,20 @@ app.post('/api/UPDATE_SUMMARYAUTHORIZE_WORKFLOW', async (req, res) => {
                   AND FACILITY_CKD_DEPT='PHARMACY'
             `);
 
+
+ // ✅ INSERT into PHARMACY with current time
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
+          .input('now', sql.DateTime, now)
+          .query(`
+            INSERT INTO DT_P3_PHARMACY
+            (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
+            VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE,330,@now))
+          `);
+
+
         // mark IN BED_DETAIL  SUMMARY done
         await pool.request()
             .input("roomno", ROOMNO)
