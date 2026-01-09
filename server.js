@@ -1397,7 +1397,7 @@ app.post('/api/CLOSE_PHARMACY_TICKET', async (req, res) => {
         // 1️⃣ Close the ticket
         const closeQuery = `
             UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 2
+            SET TKT_STATUS = 2 ,COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
@@ -2060,7 +2060,7 @@ app.post('/api/UPDATE_BILLING_WORKFLOW', async (req, res) => {
             .input("ftid", FTID)
             .query(`
                 UPDATE FACILITY_CHECK_DETAILS
-                SET TKT_STATUS = 2
+                SET TKT_STATUS = 2 ,COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
                 WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
                   AND RTRIM(LTRIM(MRNO))=@mrno
                   AND RTRIM(LTRIM(FACILITY_TID))=@ftid
@@ -2402,7 +2402,7 @@ app.post('/api/UPDATE_INSURANCE_WORKFLOW', async (req, res) => {
                     .input("ftid", FTID)
                     .query(`
                         UPDATE FACILITY_CHECK_DETAILS
-                        SET TKT_STATUS = 2
+                        SET TKT_STATUS = 2 ,COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
                         WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO))=@roomno
                           AND RTRIM(LTRIM(MRNO))=@mrno
                           AND RTRIM(LTRIM(FACILITY_TID))=@ftid
