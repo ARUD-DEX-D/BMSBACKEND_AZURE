@@ -1725,8 +1725,9 @@ app.post('/api/getsummaryauthorizeStatus', async (req, res) => {
 
     // ✅ Steps definition
     const steps = [
-        { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
+       
         { key: "PREPARE_SUMMARY_DRAFT", table: "DT_P2_DISCHARGE_SUMMARY", statusColumn: "PREPARE_SUMMARY_DRAFT", timeColumn: "PREPARE_SUMMARY_DRAFT_TIME", doneValue: [1] },
+        { key: "DOCTOR_AUTHORIZATION", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "DOCTOR_AUTHORIZATION", timeColumn: "DOCTOR_AUTHORIZATION_TIME", doneValue: [1] },
         { key: "FILE_DISPATCHED", table: "DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION", statusColumn: "FILE_DISPATCHED", timeColumn: "FILE_DISPATCHED_TIME", doneValue: [1] },
         
     ];
