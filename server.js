@@ -860,20 +860,52 @@ app.get('/notifications/:department/today', async (req, res) => {
 
 // API for Nursing Discharge Task ===========================================
 
-app.post('/api/getnursingdischargeStatus', async (req, res) => {
-    const { ROOMNO, MRNO, FTID, DEPT } = req.body;
+aapp.post('/api/getnursingdischargeStatus', async (req, res) => {
+    const { ROOMNO, MRNO, FTID } = req.body;
 
-    if (!ROOMNO || !MRNO || !FTID || !DEPT) {
-        return res.status(400).json({ message: 'ROOMNO, MRNO, FTID, and DEPT are required' });
+    if (!ROOMNO || !MRNO || !FTID) {
+        return res.status(400).json({
+            message: 'ROOMNO, MRNO and FTID are required'
+        });
     }
 
-    // ✅ Steps definition
     const steps = [
-        { key: "PHARMACY_CLEARANCE", table: "DT_P1_NURSE_STATION", statusColumn: "PHARMACY_CLEARANCE", timeColumn: "PHARMACY_CLEARANCE_TIME", doneValue: [1] },
-        { key: "LAB_CLEARANCE", table: "DT_P1_NURSE_STATION", statusColumn: "LAB_CLEARANCE", timeColumn: "LAB_CLEARANCE_TIME", doneValue: [1] },
-        { key: "CONSUMABLE_CLEARANCE", table: "DT_P1_NURSE_STATION", statusColumn: "CONSUMABLE_CLEARANCE", timeColumn: "CONSUMABLE_CLEARANCE_TIME", doneValue: [1] },
-        { key: "FILE_TRANSFERRED", table: "FACILITY_CHECK_DETAILS", statusColumn: "TKT_STATUS", timeColumn: null, doneValue: [0,1,2], facility: true },
-        { key: "PATIENT_CHECKOUT", table: "BED_DETAILS", statusColumn: "STATUS", timeColumn: null, doneValue: [3] }
+        {
+            key: "PHARMACY_CLEARANCE",
+            table: "DT_P1_NURSE_STATION",
+            statusColumn: "PHARMACY_CLEARANCE",
+            timeColumn: "PHARMACY_CLEARANCE_TIME",
+            doneValue: [1]
+        },
+        {
+            key: "LAB_CLEARANCE",
+            table: "DT_P1_NURSE_STATION",
+            statusColumn: "LAB_CLEARANCE",
+            timeColumn: "LAB_CLEARANCE_TIME",
+            doneValue: [1]
+        },
+        {
+            key: "CONSUMABLE_CLEARANCE",
+            table: "DT_P1_NURSE_STATION",
+            statusColumn: "CONSUMABLE_CLEARANCE",
+            timeColumn: "CONSUMABLE_CLEARANCE_TIME",
+            doneValue: [1]
+        },
+        {
+            key: "FILE_TRANSFERRED",
+            table: "FACILITY_CHECK_DETAILS",
+            statusColumn: "TKT_STATUS",
+            timeColumn: null,
+            doneValue: [0, 1, 2],
+            facility: true
+        },
+        {
+            key: "PATIENT_CHECKOUT",
+            table: "BED_DETAILS",
+            statusColumn: "STATUS",
+            timeColumn: null,
+            doneValue: [3]
+        }
     ];
 
     try {
@@ -881,12 +913,13 @@ app.post('/api/getnursingdischargeStatus', async (req, res) => {
         let resultObj = {};
         let nextStep = null;
 
-        for (let step of steps) {
-            let query;
-            let request = pool.request()
+        for (const step of steps) {
+            const request = pool.request()
                 .input('roomno', sql.VarChar, ROOMNO.trim())
                 .input('mrno', sql.VarChar, MRNO.trim())
                 .input('ftid', sql.VarChar, FTID.trim());
+
+            let query;
 
             if (step.facility) {
                 query = `
@@ -895,11 +928,12 @@ app.post('/api/getnursingdischargeStatus', async (req, res) => {
                     WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
                       AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-                      AND RTRIM(LTRIM(FACILITY_CKD_DEPT)) = 'SUMMARY'
+                      AND FACILITY_CKD_DEPT = 'SUMMARY'
                 `;
             } else {
                 query = `
-                    SELECT ${step.statusColumn} AS status${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
+                    SELECT ${step.statusColumn} AS status
+                    ${step.timeColumn ? `, ${step.timeColumn} AS time` : ''}
                     FROM ${step.table}
                     WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
                       AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -910,33 +944,30 @@ app.post('/api/getnursingdischargeStatus', async (req, res) => {
             const result = await request.query(query);
             const row = result.recordset[0];
 
-            let done = false;
-            if (row) {
-                // ✅ Check if doneValue is an array or single number
-                if (Array.isArray(step.doneValue)) {
-                    done = step.doneValue.includes(Number(row.status));
-                } else {
-                    done = Number(row.status) === step.doneValue;
-                }
-            }
+            const done = row
+                ? step.doneValue.includes(Number(row.status))
+                : false;
 
             resultObj[step.key] = {
                 status: done,
                 time: step.timeColumn && row ? convertToIST(row.time) : null
             };
 
-            // Assign nextStep only for the first pending step
             if (!done && !nextStep) nextStep = step.key;
         }
 
-        resultObj["nextStep"] = nextStep; // only the first pending step
+        resultObj.nextStep = nextStep;
         res.json(resultObj);
 
     } catch (err) {
         console.error("❌ Nursing Status Error:", err);
-        res.status(500).json({ message: "Server error", error: err.message });
+        res.status(500).json({
+            message: "Server error",
+            error: err.message
+        });
     }
 });
+
 
 
 
