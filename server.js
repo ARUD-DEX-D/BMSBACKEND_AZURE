@@ -1397,7 +1397,7 @@ app.post('/api/CLOSE_PHARMACY_TICKET', async (req, res) => {
         // 1️⃣ Close the ticket
         const closeQuery = `
             UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 2 ,COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+            SET TKT_STATUS = 2 , COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
@@ -1416,7 +1416,7 @@ app.post('/api/CLOSE_PHARMACY_TICKET', async (req, res) => {
         now.setHours(now.getHours() + 5, now.getMinutes() + 30); // IST adjustment
 
         const insertQuery = `
-            INSERT INTO DT_P5_INSURANCE
+            INSERT INTO DT_P4_BILLING
             (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
             VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE, 330, @now))
         `;
