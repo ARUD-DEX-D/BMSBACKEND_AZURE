@@ -93,6 +93,44 @@ LEFT JOIN LOGIN U
 
 
 
+app.get('/people-summary-authorization', async (req, res) => {
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    const result = await pool.request().query(`
+      SELECT
+        F.FACILITY_TID,
+        F.MRNO,
+        F.FACILITY_CKD_ROOMNO,
+        F.FACILITY_CKD_DEPT,
+
+        F.USERID,
+        U.USERNAME,
+
+        SA.DOCTOR_AUTHORIZATION AS SUMMARY_AUTHORIZED,
+
+        F.TKT_STATUS
+
+      FROM FACILITY_CHECK_DETAILS F
+      JOIN Facility_Dept_Master D
+        ON F.FACILITY_CKD_DEPT = D.DEPTName
+
+      LEFT JOIN LOGIN U
+        ON F.USERID = U.USERID
+
+      LEFT JOIN DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION SA
+        ON F.MRNO = SA.MRNO
+    `);
+
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    console.error('❌ /people-summary-authorization error:', err);
+    res.status(500).json({ error: 'Failed to fetch summary authorization data' });
+  }
+});
+
+
+
 
 
 // Convert DB date/time to IST (Indian Standard Time)
