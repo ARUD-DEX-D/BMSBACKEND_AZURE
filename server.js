@@ -1020,12 +1020,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
   try {
     const pool = await sql.connect(dbConfig);
 
-    // ✅ Current time (DateTime.Now equivalent)
     const now = new Date();
 
     const stepFunctions = {
 
-      // ✅ Pharmacy
       PHARMACY_CLEARANCE: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1035,7 +1033,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET PHARMACY_CLEARANCE = 1,
-                PHARMACY_CLEARANCE_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
+                PHARMACY_CLEARANCE_TIME = CASE 
+                    WHEN PHARMACY_CLEARANCE = 0 THEN DATEADD(MINUTE, 330, GETUTCDATE())
+                    ELSE PHARMACY_CLEARANCE_TIME
+                END,
                 [USER] = @user
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -1043,7 +1044,6 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           `);
       },
 
-      // ✅ Lab
       LAB_CLEARANCE: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1053,7 +1053,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET LAB_CLEARANCE = 1,
-                LAB_CLEARANCE_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
+                LAB_CLEARANCE_TIME = CASE 
+                    WHEN LAB_CLEARANCE = 0 THEN DATEADD(MINUTE, 330, GETUTCDATE())
+                    ELSE LAB_CLEARANCE_TIME
+                END,
                 [USER] = @user
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -1061,7 +1064,6 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           `);
       },
 
-      // ✅ Consumable
       CONSUMABLE_CLEARANCE: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1071,7 +1073,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET CONSUMABLE_CLEARANCE = 1,
-                CONSUMABLE_CLEARANCE_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
+                CONSUMABLE_CLEARANCE_TIME = CASE 
+                    WHEN CONSUMABLE_CLEARANCE = 0 THEN DATEADD(MINUTE, 330, GETUTCDATE())
+                    ELSE CONSUMABLE_CLEARANCE_TIME
+                END,
                 [USER] = @user
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -1079,9 +1084,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           `);
       },
 
-      // ✅ File Transferred → INSERT into Discharge Summary
       FILE_TRANSFERRED: async () => {
-
         await pool.request()
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
@@ -1099,15 +1102,17 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input('now', sql.DateTime, now)
           .query(`
-        UPDATE FACILITY_CHECK_DETAILS
-    SET TKT_STATUS = 2,
-        COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-      AND RTRIM(LTRIM(MRNO)) = @mrno
-      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-      AND FACILITY_CKD_DEPT = 'NURSING'
+            UPDATE FACILITY_CHECK_DETAILS
+            SET TKT_STATUS = 2,
+                COMPLETED_TIME = CASE
+                    WHEN COMPLETED_TIME IS NULL THEN DATEADD(MINUTE, 330, GETUTCDATE())
+                    ELSE COMPLETED_TIME
+                END
+            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
+              AND FACILITY_CKD_DEPT = 'NURSING'
           `);
 
         await pool.request()
@@ -1122,37 +1127,39 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(FTID)) = @ftid
           `);
 
-        // ✅ INSERT into Discharge Summary with current time
         await pool.request()
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input('now', sql.DateTime, now)
           .query(`
             INSERT INTO DT_P2_DISCHARGE_SUMMARY
             (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
-            VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE,330,@now))
+            SELECT @ftid, @mrno, @roomno, DATEADD(MINUTE, 330, GETUTCDATE())
+            WHERE NOT EXISTS (
+              SELECT 1 FROM DT_P2_DISCHARGE_SUMMARY
+              WHERE FTID = @ftid AND MRNO = @mrno AND ROOMNO = @roomno
+            )
           `);
       },
 
+      MEDICINE_INDENT: async () => {
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
+          .query(`
+            UPDATE DT_P1_NURSE_STATION
+            SET DISCHARGE_MEDICINE_INDENT = 1,
+                DISCHARGE_MEDICINE_INDENT_TIME = CASE
+                    WHEN DISCHARGE_MEDICINE_INDENT = 0 THEN DATEADD(MINUTE, 330, GETUTCDATE())
+                    ELSE DISCHARGE_MEDICINE_INDENT_TIME
+                END
+            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FTID)) = @ftid
+          `);
+      },
 
-MEDICINE_INDENT: async () => {
-    await pool.request()
-      .input("roomno", ROOMNO)
-      .input("mrno", MRNO)
-      .input("ftid", FTID)
-      .query(`
-        UPDATE DT_P1_NURSE_STATION
-        SET DISCHARGE_MEDICINE_INDENT = 1,
-            DISCHARGE_MEDICINE_INDENT_TIME =DATEADD(MINUTE, 330, GETUTCDATE())
-        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-          AND RTRIM(LTRIM(MRNO)) = @mrno
-          AND RTRIM(LTRIM(FTID)) = @ftid
-      `);
-},
-
-
-      // ✅ Patient Checkout
       PATIENT_CHECKOUT: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1168,7 +1175,7 @@ MEDICINE_INDENT: async () => {
       },
     };
 
-    // 🔥 Execute selected steps only
+    // Execute only selected steps
     for (const key of Object.keys(steps)) {
       if (steps[key] === true && stepFunctions[key]) {
         await stepFunctions[key]();
@@ -1185,6 +1192,7 @@ MEDICINE_INDENT: async () => {
     });
   }
 });
+
 
 
 
