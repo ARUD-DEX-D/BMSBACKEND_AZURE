@@ -1144,11 +1144,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-         
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET DISCHARGE_MEDICINE_INDENT = 1,
-            DISCHARGE_MEDICINE_INDENT_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
+            DISCHARGE_MEDICINE_INDENT_TIME = @time,
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
               AND RTRIM(LTRIM(FTID)) = @ftid
