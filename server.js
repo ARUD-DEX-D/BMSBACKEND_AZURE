@@ -1179,7 +1179,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
         }
       },
 
-     MEDICINE_INDENT: async () => {
+   MEDICINE_INDENT: async () => {
   // Fetch current row
   const result = await pool.request()
     .input("roomno", ROOMNO)
@@ -1194,15 +1194,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
     `);
 
   const row = result.recordset[0];
-
-  if (!row) {
-    return res.status(404).json({ message: "Patient workflow not found" });
-  }
+  if (!row) throw new Error("Patient workflow not found");
 
   // Dependency check
-  if (!row.FILE_TRANSFERRED) {
-    return res.status(400).json({ message: "Complete File Despatched first" });
-  }
+  if (!row.FILE_TRANSFERRED) throw new Error("Complete File Despatched first");
 
   // Only update if not already updated
   if (!row.DISCHARGE_MEDICINE_INDENT) {
