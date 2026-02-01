@@ -1179,24 +1179,48 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
         }
       },
 
-      MEDICINE_INDENT: async () => {
-        if (!row.DISCHARGE_MEDICINE_INDENT) {
-          if (!row.FILE_TRANSFERRED) throw new Error("Complete File Despatched first");
+     MEDICINE_INDENT: async () => {
+  // Fetch current row
+  const result = await pool.request()
+    .input("roomno", ROOMNO)
+    .input("mrno", MRNO)
+    .input("ftid", FTID)
+    .query(`
+      SELECT DISCHARGE_MEDICINE_INDENT, FILE_TRANSFERRED
+      FROM DT_P1_NURSE_STATION
+      WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+        AND RTRIM(LTRIM(MRNO)) = @mrno
+        AND RTRIM(LTRIM(FTID)) = @ftid
+    `);
 
-          await pool.request()
-            .input("roomno", ROOMNO)
-            .input("mrno", MRNO)
-            .input("ftid", FTID)
-            .query(`
-              UPDATE DT_P1_NURSE_STATION
-              SET DISCHARGE_MEDICINE_INDENT = 1,
-                  DISCHARGE_MEDICINE_INDENT_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-              WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
-                AND RTRIM(LTRIM(MRNO)) = @mrno
-                AND RTRIM(LTRIM(FTID)) = @ftid
-            `);
-        }
-      },
+  const row = result.recordset[0];
+
+  if (!row) {
+    return res.status(404).json({ message: "Patient workflow not found" });
+  }
+
+  // Dependency check
+  if (!row.FILE_TRANSFERRED) {
+    return res.status(400).json({ message: "Complete File Despatched first" });
+  }
+
+  // Only update if not already updated
+  if (!row.DISCHARGE_MEDICINE_INDENT) {
+    await pool.request()
+      .input("roomno", ROOMNO)
+      .input("mrno", MRNO)
+      .input("ftid", FTID)
+      .query(`
+        UPDATE DT_P1_NURSE_STATION
+        SET DISCHARGE_MEDICINE_INDENT = 1,
+            DISCHARGE_MEDICINE_INDENT_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
+        WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+          AND RTRIM(LTRIM(MRNO)) = @mrno
+          AND RTRIM(LTRIM(FTID)) = @ftid
+      `);
+  }
+},
+
 
       PATIENT_CHECKOUT: async () => {
         if (!row.PATIENT_CHECKOUT) {
