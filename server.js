@@ -1031,12 +1031,11 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("time", sql.DateTime, now)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET PHARMACY_CLEARANCE = 1,
-                PHARMACY_CLEARANCE_TIME = @time,
+                PHARMACY_CLEARANCE_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
                 [USER] = @user
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -1050,12 +1049,11 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("time", sql.DateTime, now)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET LAB_CLEARANCE = 1,
-                LAB_CLEARANCE_TIME = @time,
+                LAB_CLEARANCE_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
                 [USER] = @user
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
@@ -1069,12 +1067,11 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
-          .input("time", sql.DateTime, now)
           .input("user", user)
           .query(`
             UPDATE DT_P1_NURSE_STATION
             SET CONSUMABLE_CLEARANCE = 1,
-                CONSUMABLE_CLEARANCE_TIME = @time,
+                CONSUMABLE_CLEARANCE_TIME = DATEADD(MINUTE, 330, GETUTCDATE()),
                 [USER] = @user
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
