@@ -1019,13 +1019,9 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
 
   try {
     const pool = await sql.connect(dbConfig);
-
-    // ✅ Current time (DateTime.Now equivalent)
     const now = new Date();
 
     const stepFunctions = {
-
-      // ✅ Pharmacy
       PHARMACY_CLEARANCE: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1043,8 +1039,6 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(FTID)) = @ftid
           `);
       },
-
-      // ✅ Lab
       LAB_CLEARANCE: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1062,8 +1056,6 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(FTID)) = @ftid
           `);
       },
-
-      // ✅ Consumable
       CONSUMABLE_CLEARANCE: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1081,64 +1073,42 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
               AND RTRIM(LTRIM(FTID)) = @ftid
           `);
       },
-
-      // ✅ File Transferred → INSERT into Discharge Summary
       FILE_TRANSFERRED: async () => {
-
-        await pool.request()
-          .input("roomno", ROOMNO)
-          .input("mrno", MRNO)
-          .input("ftid", FTID)
-          .query(`
-            UPDATE FACILITY_CHECK_DETAILS
-            SET TKT_STATUS = 0
-            WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-              AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-              AND FACILITY_CKD_DEPT = 'SUMMARY'
-          `);
-
+        // Update nursing ticket and insert discharge summary
         await pool.request()
           .input("roomno", ROOMNO)
           .input("mrno", MRNO)
           .input("ftid", FTID)
           .input('now', sql.DateTime, now)
-          .query(`
-        UPDATE FACILITY_CHECK_DETAILS
-    SET TKT_STATUS = 2,
-        COMPLETED_TIME = DATEADD(MINUTE, 330, GETUTCDATE())
-    WHERE RTRIM(LTRIM(FACILITY_CKD_ROOMNO)) = @roomno
-      AND RTRIM(LTRIM(MRNO)) = @mrno
-      AND RTRIM(LTRIM(FACILITY_TID)) = @ftid
-      AND FACILITY_CKD_DEPT = 'NURSING'
-          `);
-
-        await pool.request()
-          .input("roomno", ROOMNO)
-          .input("mrno", MRNO)
-          .input("ftid", FTID)
           .query(`
             UPDATE BED_DETAILS
             SET NURSING = 1
             WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
               AND RTRIM(LTRIM(MRNO)) = @mrno
-              AND RTRIM(LTRIM(FTID)) = @ftid
-          `);
+              AND RTRIM(LTRIM(FTID)) = @ftid;
 
-        // ✅ INSERT into Discharge Summary with current time
-        await pool.request()
-          .input("roomno", ROOMNO)
-          .input("mrno", MRNO)
-          .input("ftid", FTID)
-          .input('now', sql.DateTime, now)
-          .query(`
             INSERT INTO DT_P2_DISCHARGE_SUMMARY
             (FTID, MRNO, ROOMNO, FILE_RECEIVED_TIME)
             VALUES (@ftid, @mrno, @roomno, DATEADD(MINUTE,330,@now))
           `);
       },
-
-      // ✅ Patient Checkout
+      MEDICINE_INDENT: async () => {
+        await pool.request()
+          .input("roomno", ROOMNO)
+          .input("mrno", MRNO)
+          .input("ftid", FTID)
+          .input("time", sql.DateTime, now)
+          .input("user", user)
+          .query(`
+            UPDATE DT_P1_NURSE_STATION
+            SET DISCHARGE_MEDICINE_INDENT = 1,
+                DISCHARGE_MEDICINE_INDENT_TIME = @time,
+                [USER] = @user
+            WHERE RTRIM(LTRIM(ROOMNO)) = @roomno
+              AND RTRIM(LTRIM(MRNO)) = @mrno
+              AND RTRIM(LTRIM(FTID)) = @ftid
+          `);
+      },
       PATIENT_CHECKOUT: async () => {
         await pool.request()
           .input("roomno", ROOMNO)
@@ -1154,10 +1124,10 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
       },
     };
 
-    // 🔥 Execute selected steps only
-    for (const key of Object.keys(steps)) {
-      if (steps[key] === true && stepFunctions[key]) {
-        await stepFunctions[key]();
+    // 🔥 Execute only the steps that are true
+    for (const stepName of Object.keys(steps)) {
+      if (steps[stepName] === true && stepFunctions[stepName]) {
+        await stepFunctions[stepName]();
       }
     }
 
@@ -1165,10 +1135,7 @@ app.post('/api/UPDATE_NURSING_WORKFLOW', async (req, res) => {
 
   } catch (err) {
     console.error("WORKFLOW ERROR:", err);
-    res.status(500).json({
-      message: "Server Error",
-      error: err.message,
-    });
+    res.status(500).json({ message: "Server Error", error: err.message });
   }
 });
 
