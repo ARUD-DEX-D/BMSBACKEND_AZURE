@@ -99,27 +99,33 @@ app.get('/people-summary-authorization', async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT
-        F.FACILITY_TID,
-        F.MRNO,
-        F.FACILITY_CKD_ROOMNO,
-        F.FACILITY_CKD_DEPT,
+    F.FACILITY_TID,
+    F.MRNO,
+    F.FACILITY_CKD_ROOMNO,
+    F.FACILITY_CKD_DEPT,
 
-        F.USERID,
-        U.USERNAME,
+    F.USERID,
+    U.USERNAME,
 
-        SA.DOCTOR_AUTHORIZATION AS SUMMARY_AUTHORIZED,
+    SA.DOCTOR_AUTHORIZATION AS SUMMARY_AUTHORIZED,
 
-        F.TKT_STATUS
+    NS.DISCHARGE_MEDICINE_INDENT AS MEDICINE_INDENT ,
 
-      FROM FACILITY_CHECK_DETAILS F
-      JOIN Facility_Dept_Master D
-        ON F.FACILITY_CKD_DEPT = D.DEPTName
+    F.TKT_STATUS
 
-      LEFT JOIN LOGIN U
-        ON F.USERID = U.USERID
+FROM FACILITY_CHECK_DETAILS F
 
-      LEFT JOIN DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION SA
-        ON F.MRNO = SA.MRNO
+JOIN Facility_Dept_Master D
+    ON F.FACILITY_CKD_DEPT = D.DEPTName
+
+LEFT JOIN LOGIN U
+    ON F.USERID = U.USERID
+
+LEFT JOIN DT_P2_1_DISCHARGE_SUMMARY_AUTHORIZATION SA
+    ON F.MRNO = SA.MRNO
+
+LEFT JOIN DT_P1_NURSE_STATION NS
+    ON F.MRNO = NS.MRNO
     `);
 
     res.status(200).json(result.recordset);
