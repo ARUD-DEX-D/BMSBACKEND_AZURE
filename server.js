@@ -196,6 +196,53 @@ app.get('/person/:id', async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
+app.get('/userdetails/', async (req, res) => {
+  try {
+    const pool = await sql.connect(dbConfig);
+    const result = await pool.request()
+      .query('SELECT userid ID, username NAME, dept DEPT, designation DESIG FROM USER_DETAILS');
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'No user details found' });
+    }
+
+    // Return all records
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('❌ Fetch all users Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ✅ POST /register
 app.post('/register', async (req, res) => {
   const { USERNAME, DEPT, USERID, PASSWORD, FCM_TOKEN } = req.body;
