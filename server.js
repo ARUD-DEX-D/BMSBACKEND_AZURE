@@ -52,13 +52,15 @@ sql.connect(dbConfig)
 // 🔹 Function to create tenant tables (async fire-and-forget)
 async function initializeTenantDB(dbName) {
   try {
+    await waitForTenantDB(dbName); // ensure DB is ready
+
     const tenantConfig = { ...dbConfig, database: dbName, requestTimeout: 120000 };
     const pool = await sql.connect(tenantConfig);
 
     const schemaPath = path.join(__dirname, 'db', 'schema.sql');
     const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
 
-    // Execute schema (split into batches to avoid Azure SQL timeout)
+    // Split into batches to prevent Azure SQL timeout
     const batches = schemaSQL.split(/;\s*\n/);
     for (const batch of batches) {
       if (batch.trim()) {
@@ -68,7 +70,7 @@ async function initializeTenantDB(dbName) {
 
     console.log(`✅ Schema applied to tenant DB: ${dbName}`);
 
-    // Update tenant status to Active
+    // Update tenant status in BMS
     const masterPool = await sql.connect(dbConfig);
     await masterPool.request()
       .input('dbName', sql.NVarChar(200), dbName)
@@ -76,7 +78,7 @@ async function initializeTenantDB(dbName) {
 
   } catch (err) {
     console.error('❌ Failed to initialize tenant DB:', err);
-    // Optionally, update Clients.Status='Failed'
+    // Optionally update Clients.Status='Failed'
   }
 }
 
@@ -93,15 +95,12 @@ app.post('/create-client', async (req, res) => {
 
   try {
     const pool = await sql.connect(dbConfig);
-
-    // Sanitize DB name (letters + numbers only)
     const dbName = `Client_${clientName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}_db`;
 
-    // 1️⃣ Create tenant database
+    // Create tenant DB
     await pool.request().query(`CREATE DATABASE [${dbName}]`);
-    console.log(`✅ Client DB created: ${dbName}`);
 
-    // 2️⃣ Insert tenant info immediately with 'Provisioning' status
+    // Insert tenant info with 'Provisioning' status
     await pool.request()
       .input('clientName', sql.NVarChar(100), clientName)
       .input('dbName', sql.NVarChar(200), dbName)
@@ -111,14 +110,13 @@ app.post('/create-client', async (req, res) => {
         VALUES (@clientName, @dbName, @plan, 'Provisioning')
       `);
 
-    // 3️⃣ Apply schema asynchronously (fire-and-forget)
+    // Apply schema asynchronously
     initializeTenantDB(dbName);
 
-    // 4️⃣ Return immediate response
     res.json({ success: true, message: 'Client DB creation started', database: dbName });
 
   } catch (err) {
-    console.error('❌ Client DB creation error:', err);
+    console.error('❌ Tenant creation error:', err);
     res.status(500).json({ error: err.message });
   }
 });
