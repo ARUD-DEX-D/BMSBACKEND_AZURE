@@ -85,7 +85,7 @@ app.post('/create-client', async (req, res) => {
     const pool = await sql.connect(dbConfig);
 
     // Generate database name
-    const dbName = `tenant_${clientName.replace(/\s/g, '').toLowerCase()}_db`;
+    const dbName = `Client_${clientName.replace(/\s/g, '').toLowerCase()}_db`;
 
     // 1️⃣ Create tenant database
     await pool.request().query(`CREATE DATABASE [${dbName}]`);
