@@ -49,68 +49,79 @@ sql.connect(dbConfig)
 
 
 
-
-  // 🔹 Function to create Client tables
+// 🔹 Function to create tenant tables (async fire-and-forget)
 async function initializeTenantDB(dbName) {
   try {
-    const tenantConfig = {
-      ...dbConfig,
-      database: dbName
-    };
-
+    const tenantConfig = { ...dbConfig, database: dbName, requestTimeout: 120000 };
     const pool = await sql.connect(tenantConfig);
 
     const schemaPath = path.join(__dirname, 'db', 'schema.sql');
     const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
 
-    await pool.request().query(schemaSQL);
+    // Execute schema (split into batches to avoid Azure SQL timeout)
+    const batches = schemaSQL.split(/;\s*\n/);
+    for (const batch of batches) {
+      if (batch.trim()) {
+        await pool.request().query(batch);
+      }
+    }
 
-    console.log(`✅ Schema applied to tenant database: ${dbName}`);
+    console.log(`✅ Schema applied to tenant DB: ${dbName}`);
+
+    // Update tenant status to Active
+    const masterPool = await sql.connect(dbConfig);
+    await masterPool.request()
+      .input('dbName', sql.NVarChar(200), dbName)
+      .query(`UPDATE Clients SET Status='Active' WHERE DatabaseName=@dbName`);
+
   } catch (err) {
     console.error('❌ Failed to initialize tenant DB:', err);
-    throw err;
+    // Optionally, update Clients.Status='Failed'
   }
 }
 
 
 
 
-// Create client database for SaaS Multi Tenent database
 
+
+
+// 🔹 Create Client DB API
 app.post('/create-client', async (req, res) => {
   const { clientName, subscriptionPlan } = req.body;
-
   if (!clientName) return res.status(400).json({ error: 'Client name required' });
 
   try {
     const pool = await sql.connect(dbConfig);
 
-    // Generate database name
-    const dbName = `Client_${clientName.replace(/\s/g, '').toLowerCase()}_db`;
+    // Sanitize DB name (letters + numbers only)
+    const dbName = `Client_${clientName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}_db`;
 
     // 1️⃣ Create tenant database
     await pool.request().query(`CREATE DATABASE [${dbName}]`);
+    console.log(`✅ Client DB created: ${dbName}`);
 
-    // 2️⃣ Apply schema to the new DB
-    await initializeTenantDB(dbName);
-
-    // 3️⃣ Insert tenant info into BMS.Clients
+    // 2️⃣ Insert tenant info immediately with 'Provisioning' status
     await pool.request()
       .input('clientName', sql.NVarChar(100), clientName)
       .input('dbName', sql.NVarChar(200), dbName)
       .input('plan', sql.NVarChar(50), subscriptionPlan)
       .query(`
         INSERT INTO Clients (ClientName, DatabaseName, SubscriptionPlan, Status)
-        VALUES (@clientName, @dbName, @plan, 'Active')
+        VALUES (@clientName, @dbName, @plan, 'Provisioning')
       `);
 
-    res.json({ success: true, message: 'Tenant created', database: dbName });
+    // 3️⃣ Apply schema asynchronously (fire-and-forget)
+    initializeTenantDB(dbName);
+
+    // 4️⃣ Return immediate response
+    res.json({ success: true, message: 'Client DB creation started', database: dbName });
+
   } catch (err) {
-    console.error('❌ Tenant creation error:', err);
+    console.error('❌ Client DB creation error:', err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 
