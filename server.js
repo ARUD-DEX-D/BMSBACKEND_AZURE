@@ -2,6 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql');   // Works on Azure
+const fs = require('fs');
+const path = require('path');
+
+
 
 const app = express();          // ✅ Initialize app first
 const PORT = process.env.PORT || 5000;
@@ -36,6 +40,82 @@ console.log('Connecting to:', process.env.DB_SERVER);
 sql.connect(dbConfig)
   .then(() => console.log('✅ Connected to cloud MSSQL'))
   .catch(err => console.error('❌ DB Connection Failed:', err));
+
+
+
+
+
+
+
+
+
+  // 🔹 Function to create Client tables
+async function initializeTenantDB(dbName) {
+  try {
+    const tenantConfig = {
+      ...dbConfig,
+      database: dbName
+    };
+
+    const pool = await sql.connect(tenantConfig);
+
+    const schemaPath = path.join(__dirname, 'db', 'schema.sql');
+    const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
+
+    await pool.request().query(schemaSQL);
+
+    console.log(`✅ Schema applied to tenant database: ${dbName}`);
+  } catch (err) {
+    console.error('❌ Failed to initialize tenant DB:', err);
+    throw err;
+  }
+}
+
+
+
+
+// Create client database for SaaS Multi Tenent database
+
+app.post('/create-client', async (req, res) => {
+  const { clientName, subscriptionPlan } = req.body;
+
+  if (!clientName) return res.status(400).json({ error: 'Client name required' });
+
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    // Generate database name
+    const dbName = `tenant_${clientName.replace(/\s/g, '').toLowerCase()}_db`;
+
+    // 1️⃣ Create tenant database
+    await pool.request().query(`CREATE DATABASE [${dbName}]`);
+
+    // 2️⃣ Apply schema to the new DB
+    await initializeTenantDB(dbName);
+
+    // 3️⃣ Insert tenant info into BMS.Clients
+    await pool.request()
+      .input('clientName', sql.NVarChar(100), clientName)
+      .input('dbName', sql.NVarChar(200), dbName)
+      .input('plan', sql.NVarChar(50), subscriptionPlan)
+      .query(`
+        INSERT INTO Clients (ClientName, DatabaseName, SubscriptionPlan, Status)
+        VALUES (@clientName, @dbName, @plan, 'Active')
+      `);
+
+    res.json({ success: true, message: 'Tenant created', database: dbName });
+  } catch (err) {
+    console.error('❌ Tenant creation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+
+
 
 // ✅ POST /insert
 app.post('/insert', async (req, res) => {
