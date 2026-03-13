@@ -29,7 +29,8 @@ const dbConfig = {
   database: process.env.DB_NAME,
   options: {
     encrypt: true,         // Required for Azure SQL
-    trustServerCertificate: false
+    trustServerCertificate: false,
+     requestTimeout: 120000   // 120 seconds
   }
 };
 
